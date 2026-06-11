@@ -12,7 +12,7 @@ TOKYO_23_WARDS = [
     "葛飾区", "江戸川区",
 ]
 
-PROPERTY_TYPES = {"中古マンション等"}
+PROPERTY_TYPES = frozenset({"中古マンション等"})
 MAX_STATION_MINUTES = 15   # spec: 最寄駅距離 ≤ 15分
 MIN_WINDOW_TX = 10         # trailing-4Q tx count for a valid snapshot
 MIN_QUARTER_TX = 3         # tx count for a single quarterly median to exist

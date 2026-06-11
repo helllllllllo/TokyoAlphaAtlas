@@ -13,7 +13,7 @@ def normalize(name):
     if not name:
         return ""
     s = unicodedata.normalize("NFKC", name).strip()
-    s = _PAREN_RE.sub("", s)
+    s = _PAREN_RE.sub("", s).strip()
     s = s.replace("ケ", "ヶ")
     s = s.removesuffix("駅")
     return ALIASES.get(s, s)

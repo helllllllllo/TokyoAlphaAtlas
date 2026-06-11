@@ -5,6 +5,8 @@ def test_wareki():
     assert to_year("平成25年") == 2013
     assert to_year("令和元年") == 2019
     assert to_year("令和3年") == 2021
+    assert to_year("大正15年") == 1926
+    assert to_year("明治45年") == 1912
 
 def test_seireki():
     assert to_year("2010年") == 2010

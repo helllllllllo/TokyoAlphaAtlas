@@ -1,3 +1,5 @@
+import pytest
+
 from atlas.quarters import parse_quarter, qindex, qlabel
 
 def test_parse_seireki_fullwidth():
@@ -18,3 +20,13 @@ def test_index_roundtrip():
     assert qindex("2005Q3") == 2005 * 4 + 2
     assert qlabel(qindex("2023Q4")) == "2023Q4"
     assert qindex("2023Q1") - qindex("2022Q1") == 4
+
+def test_qindex_rejects_bad_labels():
+    with pytest.raises(ValueError):
+        qindex("Q3")
+    with pytest.raises(ValueError):
+        qindex("")
+
+def test_qlabel_rejects_negative_index():
+    with pytest.raises(ValueError):
+        qlabel(-1)

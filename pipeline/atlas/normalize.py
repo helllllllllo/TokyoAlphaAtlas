@@ -18,14 +18,15 @@ class MatchRateError(RuntimeError):
 
 
 def mad_trim(df, k=config.MAD_K):
-    mask = pd.Series(True, index=df.index)
-    for station, group in df.groupby("station"):
-        med = group.ppsm.median()
-        mad = (group.ppsm - med).abs().median()
-        if mad > 0:
-            z = 0.6745 * (group.ppsm - med) / mad
-            mask.loc[group.index] = z.abs() <= k
-    return df[mask]
+    g = df.groupby("station")["ppsm"]
+    med = g.transform("median")
+    mad = (df["ppsm"] - med).abs().groupby(df["station"]).transform("median")
+    has_spread = mad > 0
+    # MAD==0: zero spread → keep all; extreme outliers in zero-spread stations
+    # pass through (accepted: rare, and trailing-window medians absorb them)
+    z = pd.Series(0.0, index=df.index)
+    z[has_spread] = 0.6745 * (df.loc[has_spread, "ppsm"] - med[has_spread]) / mad[has_spread]
+    return df[z.abs() <= k]
 
 
 def build_clean_transactions(con):
@@ -46,6 +47,17 @@ def build_clean_transactions(con):
     df["qidx"] = df.quarter.map(qindex)
     df["station"] = df.station_name.map(norm_name)
 
+    # rows with no usable station name are unattributable — drop before the
+    # match-rate computation so they don't poison the gate
+    no_station = df.station == ""
+    report["no_station"] = int(no_station.sum())
+    df = df[~no_station]
+
+    if df.empty:
+        raise ValueError(
+            "no rows survived filtering — check PROPERTY_TYPES/TOKYO_23_WARDS config"
+        )
+
     known = set(con.execute("select name_norm from stations").df().name_norm)
     matched = df.station.isin(known)
     rate = float(matched.mean())
@@ -60,6 +72,7 @@ def build_clean_transactions(con):
     report["mad_trimmed"] = before - len(df)
     report["rows_out"] = len(df)
 
+    # district stays in raw_transactions only — not needed downstream yet
     out = df[["station", "municipality", "qidx", "quarter", "ppsm", "price",
               "area", "built_year", "minutes", "price_type"]]
     con.register("_clean", out)

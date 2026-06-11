@@ -36,6 +36,10 @@ rows += [
     ["中古マンション等", "中野区", "x", "中野", "5", "30000000", "50", "不明", "2023年第4四半期"],
     ["中古マンション等", "中野区", "x", "中野", "5", "990000000", "50", "平成2年", "2023年第4四半期"],  # MAD outlier (ppsm 19.8M)
     ["中古マンション等", "葛飾区", "x", "存在しない駅", "5", "25000000", "50", "平成2年", "2023年第4四半期"],
+    # real-world blank cells (csv writes "" as an empty cell; pandas dtype=str reads it as NaN)
+    ["中古マンション等", "中野区", "x", "中野", "5", "30000000", "50", "", "2023年第4四半期"],   # blank 建築年 — survives, built_year=None
+    ["中古マンション等", "中野区", "x", "", "5", "30000000", "50", "平成2年", "2023年第4四半期"],  # blank 最寄駅：名称 — dropped as no_station
+    ["中古マンション等", "中野区", "x", "中野", "5", "30000000", "50", "平成2年", ""],            # blank 取引時期 — quarter=None, dropped
 ]
 
 with open(OUT / "tx_fixture.csv", "w", encoding="cp932", newline="") as f:

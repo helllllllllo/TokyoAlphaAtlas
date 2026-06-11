@@ -60,6 +60,7 @@ def ingest_stations(con, n02_path: Path | None = None,
         "lon": pts.x,
         "lat": pts.y,
     })
+    df = df[df.name_norm != ""]  # nameless features would become a phantom "" station key
     stations = df.groupby("name_norm").agg(
         lon=("lon", "mean"),
         lat=("lat", "mean"),

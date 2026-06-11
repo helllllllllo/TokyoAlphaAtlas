@@ -10,7 +10,7 @@ _PAREN_RE = re.compile(r"[（(].*?[)）]")
 
 def normalize(name):
     """Normalize a station name for joining transaction CSVs to N02 geometry."""
-    if not name:
+    if not isinstance(name, str) or not name:
         return ""
     s = unicodedata.normalize("NFKC", name)
     s = _PAREN_RE.sub("", s)

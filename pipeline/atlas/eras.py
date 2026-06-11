@@ -7,7 +7,7 @@ _SEIREKI_RE = re.compile(r"(\d{4})年")
 
 def to_year(text):
     """建築年 text (和暦 or 西暦) -> int year, or None if unparseable."""
-    if not text:
+    if not isinstance(text, str) or not text:
         return None
     m = _SEIREKI_RE.search(text)
     if m:

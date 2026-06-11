@@ -25,3 +25,7 @@ def test_alias_table_applied(monkeypatch):
     from atlas import station_names
     monkeypatch.setitem(station_names.ALIASES, "テスト旧名", "テスト新名")
     assert normalize("テスト旧名") == "テスト新名"
+
+def test_nan_returns_empty():
+    # blank CSV cells read with dtype=str arrive as float NaN
+    assert normalize(float("nan")) == ""

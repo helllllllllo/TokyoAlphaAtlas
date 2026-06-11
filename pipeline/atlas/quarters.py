@@ -9,7 +9,9 @@ _QLABEL_RE = re.compile(r"^\d{4}Q[1-4]$")
 
 def parse_quarter(text):
     """'2023年第３四半期' / '平成25年第１四半期' -> '2023Q3'; None if unparseable."""
-    m = _Q_RE.search(text or "")
+    if not isinstance(text, str):
+        return None
+    m = _Q_RE.search(text)
     if not m:
         return None
     if m.group(1):

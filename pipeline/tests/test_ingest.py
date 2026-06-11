@@ -13,14 +13,15 @@ def con():
 
 def test_ingest_transactions(con):
     n = ingest.ingest_transactions(con, src_dir=FIX / "transactions")
-    assert n == 78
+    # 81 rows = 72 designed (3 stations x 8 quarters x 3 tx) + 9 dirty
+    assert n == 81
     cols = {r[0] for r in con.execute("describe raw_transactions").fetchall()}
     assert {"property_type", "municipality", "station_name", "station_minutes",
             "price_total", "area_sqm", "built_text", "period_text", "price_type"} <= cols
-    # price_type defaulted when column absent in CSV
+    # price_type defaulted when column absent in CSV — applies to all 81 rows
     assert con.execute(
         "select count(*) from raw_transactions where price_type = '取引価格情報'"
-    ).fetchone()[0] == 78
+    ).fetchone()[0] == 81
 
 def test_ingest_transactions_empty_dir_raises(con, tmp_path):
     with pytest.raises(FileNotFoundError):
@@ -37,3 +38,12 @@ def test_ingest_stations_merges_lines(con):
     assert row[1] == 2
     assert row[2] == 140000
     assert 139.66 < row[3] < 139.67
+
+def test_ingest_stations_without_s12(con, tmp_path):
+    # S12 ridership file absent → stations table still written, ridership all null
+    n = ingest.ingest_stations(con, n02_path=FIX / "n02_stations.geojson",
+                               s12_path=tmp_path / "missing.geojson")
+    assert n == 3
+    rid = [r[0] for r in con.execute("select ridership from stations").fetchall()]
+    assert len(rid) == 3
+    assert all(r is None for r in rid)

@@ -16,3 +16,7 @@ def test_unparseable_returns_none():
     assert to_year(None) is None
     assert to_year("戦前") is None   # spec: never guess — count & exclude
     assert to_year("不明") is None
+
+def test_nan_returns_none():
+    # blank CSV cells read with dtype=str arrive as float NaN
+    assert to_year(float("nan")) is None

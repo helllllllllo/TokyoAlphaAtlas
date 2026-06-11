@@ -30,3 +30,7 @@ def test_qindex_rejects_bad_labels():
 def test_qlabel_rejects_negative_index():
     with pytest.raises(ValueError):
         qlabel(-1)
+
+def test_parse_nan_returns_none():
+    # blank CSV cells read with dtype=str arrive as float NaN
+    assert parse_quarter(float("nan")) is None

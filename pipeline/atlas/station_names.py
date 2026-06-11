@@ -12,8 +12,9 @@ def normalize(name):
     """Normalize a station name for joining transaction CSVs to N02 geometry."""
     if not name:
         return ""
-    s = unicodedata.normalize("NFKC", name).strip()
-    s = _PAREN_RE.sub("", s).strip()
+    s = unicodedata.normalize("NFKC", name)
+    s = _PAREN_RE.sub("", s)
     s = s.replace("ケ", "ヶ")
     s = s.removesuffix("駅")
+    s = s.strip()
     return ALIASES.get(s, s)

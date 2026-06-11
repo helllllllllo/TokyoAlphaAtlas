@@ -10,6 +10,8 @@ def test_paren_stripped():
     assert normalize("押上（スカイツリー前）") == "押上"
     assert normalize("押上(スカイツリー前)") == "押上"
     assert normalize("中野 (JR)") == "中野"
+    assert normalize("渋谷 （マークシティ）駅") == "渋谷"
+    assert normalize("渋谷 （マークシティ） 駅") == "渋谷"
 
 def test_eki_suffix_stripped():
     assert normalize("中野駅") == "中野"

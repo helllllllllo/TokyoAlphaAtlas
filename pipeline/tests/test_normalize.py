@@ -23,8 +23,10 @@ def test_clean_filters_and_ppsm(con):
     # bad distance, MAD outlier, unknown station, blank station, blank period
     assert len(df) == 74
     assert set(df.station) == {"中野", "高円寺", "新宿テスト"}
-    # 中野 2023Q4 ppsm = [594000, 600000(不明), 600000(blank year), 660000, 726000]
-    assert df[(df.station == "中野") & (df.qidx == 2023 * 4 + 3)].ppsm.median() == pytest.approx(600000)
+    # 中野 2023Q4 ppsm = [594000, 660000(不明), 660000(blank year), 660000, 726000]
+    # — survivor rows are pinned AT the designed 2023 median (660000), so the
+    # quarter median stays at the designed value
+    assert df[(df.station == "中野") & (df.qidx == 2023 * 4 + 3)].ppsm.median() == pytest.approx(660000)
     assert report["rows_in"] == 81  # 72 designed + 9 dirty
     assert report["match_rate"] > 0.97
     # 不明 row + blank-建築年 row

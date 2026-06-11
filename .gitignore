@@ -3,3 +3,5 @@ pipeline/data/raw/
 pipeline/data/*.duckdb
 node_modules/
 .DS_Store
+__pycache__/
+*.pyc

@@ -1,0 +1,10 @@
+{"type": "FeatureCollection", "features": [
+  {"type": "Feature", "properties": {"N02_003": "中央線", "N02_004": "東日本旅客鉄道", "N02_005": "中野"},
+   "geometry": {"type": "LineString", "coordinates": [[139.6650, 35.7056], [139.6660, 35.7056]]}},
+  {"type": "Feature", "properties": {"N02_003": "東西線", "N02_004": "東京地下鉄", "N02_005": "中野"},
+   "geometry": {"type": "LineString", "coordinates": [[139.6652, 35.7054], [139.6662, 35.7054]]}},
+  {"type": "Feature", "properties": {"N02_003": "中央線", "N02_004": "東日本旅客鉄道", "N02_005": "高円寺"},
+   "geometry": {"type": "LineString", "coordinates": [[139.6498, 35.7052], [139.6508, 35.7052]]}},
+  {"type": "Feature", "properties": {"N02_003": "山手線", "N02_004": "東日本旅客鉄道", "N02_005": "新宿テスト"},
+   "geometry": {"type": "LineString", "coordinates": [[139.7003, 35.6900], [139.7013, 35.6900]]}}
+]}

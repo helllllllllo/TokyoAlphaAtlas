@@ -2,8 +2,9 @@ import argparse
 from pathlib import Path
 
 import duckdb
+import pandas as pd
 
-from atlas import aggregate, config, emit, ingest, normalize
+from atlas import aggregate, config, emit, hazard, ingest, normalize
 from atlas.quarters import qlabel
 
 
@@ -15,6 +16,14 @@ def refresh(tx_dir=None, n02_path=None, s12_path=None, out_dir=None, db_path=Non
         n_tx = ingest.ingest_transactions(con, src_dir=tx_dir)
         n_st = ingest.ingest_stations(con, n02_path=n02_path, s12_path=s12_path)
         print(f"ingest: {n_tx} transactions, {n_st} stations")
+
+        stations_df = con.execute("select * from stations").df()
+        stations_df = hazard.add_hazard(stations_df)
+        con.register("_sth", stations_df)
+        con.execute("create or replace table stations as select * from _sth")
+        con.unregister("_sth")
+        n_hazard = int(stations_df.hazard_score.notna().sum())
+        print(f"hazard: scored {n_hazard}/{len(stations_df)} stations")
 
         report = normalize.build_clean_transactions(con)
         for k, v in report.items():

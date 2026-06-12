@@ -1,0 +1,6 @@
+{"type": "FeatureCollection", "features": [
+  {"type": "Feature", "properties": {"A33_001": "急傾斜地"},
+   "geometry": {"type": "Polygon", "coordinates": [[
+     [139.649, 35.704], [139.652, 35.704], [139.652, 35.706], [139.649, 35.706], [139.649, 35.704]
+   ]]}}
+]}

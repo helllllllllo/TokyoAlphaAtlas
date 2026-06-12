@@ -41,3 +41,7 @@ LANDPRICE_PRICE_ATTR_BY_YEAR = {2024: "L01_008"}  # L01-2024 moved price from L0
 METRIC_CRS = 6677                # JGD2011 Plane Rectangular CS IX (Tokyo)
 STATION_BUFFER_M = 800           # hazard buffer
 POP_BUFFER_M = 1000              # population buffer
+
+HIST_WINDOW_QUARTERS = 8
+HIST_MIN_TX = 20
+HIST_BINS = 12

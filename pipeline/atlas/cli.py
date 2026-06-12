@@ -56,27 +56,39 @@ def main():
     parser = argparse.ArgumentParser(prog="atlas")
     sub = parser.add_subparsers(dest="cmd", required=True)
     p_refresh = sub.add_parser("refresh", help="run the full pipeline against data/raw/")
+    p_refresh.add_argument("--tx-dir", type=Path, default=None,
+                           help="transaction CSV directory (default: data/raw/transactions)")
+    p_refresh.add_argument("--n02", type=Path, default=None,
+                           help="N02 stations GeoJSON path (default: data/raw/n02/...)")
+    p_refresh.add_argument("--s12", type=Path, default=None,
+                           help="S12 ridership GeoJSON path (default: data/raw/s12/...)")
     p_refresh.add_argument("--out-dir", type=Path, default=None,
                            help=f"artifact output directory (default: {config.OUT_DIR})")
     p_refresh.add_argument("--db-path", type=Path, default=None,
                            help=f"DuckDB working store path (default: {config.DB_PATH})")
     p_refresh.add_argument("--hazard-dir", type=Path, default=None,
                            help="hazard source directory (default: data/raw/hazard)")
-    p_refresh.add_argument("--population-path", type=Path, default=None,
+    p_refresh.add_argument("--population", type=Path, default=None,
                            help="population mesh GeoJSON path (default: data/raw/population/mesh.geojson)")
     p_refresh.add_argument("--landprice-dir", type=Path, default=None,
                            help="land price source directory (default: data/raw/landprice)")
     p_refresh.add_argument("--rail-src", type=Path, default=None,
                            help="rail sections GeoJSON path (default: data/raw/n02/rail_sections.geojson)")
+    p_refresh.add_argument("--emit-hazard-dir", type=Path, default=None,
+                           help="hazard overlay output directory (defaults to --hazard-dir)")
     args = parser.parse_args()
     if args.cmd == "refresh":
         refresh(
+            tx_dir=args.tx_dir,
+            n02_path=args.n02,
+            s12_path=args.s12,
             out_dir=args.out_dir,
             db_path=args.db_path,
             hazard_dir=args.hazard_dir,
-            population_path=args.population_path,
+            population_path=args.population,
             landprice_dir=args.landprice_dir,
             rail_src=args.rail_src,
+            emit_hazard_dir=args.emit_hazard_dir,
         )
 
 

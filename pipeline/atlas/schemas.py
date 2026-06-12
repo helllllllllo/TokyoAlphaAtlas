@@ -67,7 +67,7 @@ QUARTERS_SCHEMA = {
 
 DETAIL_SCHEMA = {
     "type": "object",
-    "required": ["schema_version", "id", "name", "series", "similar", "hazard", "landprice"],
+    "required": ["schema_version", "id", "name", "series", "similar", "hazard", "landprice", "hist"],
     "properties": {
         "schema_version": {"type": "integer"},
         "id": {"type": "string"}, "name": {"type": "string"},
@@ -94,6 +94,7 @@ DETAIL_SCHEMA = {
         },
         "hazard": {"type": ["object", "null"]},
         "landprice": {"type": ["object", "null"]},
+        "hist": {"type": ["object", "null"]},
     },
 }
 

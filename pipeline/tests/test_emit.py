@@ -162,6 +162,34 @@ def test_emit_unsafe_station_name_end_to_end(prepared, tmp_path):
             assert s["median_ppsm"] == pytest.approx(660000)
 
 
+def test_detail_includes_histogram(prepared, tmp_path):
+    con, report, out = prepared
+    _hermetic_emit(con, report, out, tmp_path)
+    detail = json.loads((out / "station" / "中野.json").read_text())
+    h = detail["hist"]
+    assert h["window_quarters"] == 8
+    assert len(h["bin_edges"]) == len(h["counts"]) + 1
+    # 中野 trailing 8Q = 24 designed + 2 survivors = 26 rows after normalization
+    assert sum(h["counts"]) == 26
+    assert min(h["bin_edges"]) <= 540000 <= max(h["bin_edges"])
+
+
+def test_detail_hist_null_when_thin(prepared, tmp_path):
+    con, report, out = prepared
+    # synthetic thin station: 5 rows only — below HIST_MIN_TX
+    con.execute("""
+        insert into clean_transactions
+        select '薄い駅', municipality, qidx, quarter, ppsm, price, area, built_year, minutes, price_type
+        from clean_transactions where station = '中野' limit 5
+    """)
+    con.execute("""
+        insert into stations select '薄い駅', * exclude(name_norm) from stations where name_norm = '中野'
+    """)
+    _hermetic_emit(con, report, out, tmp_path)
+    detail = json.loads((out / "station" / "薄い駅.json").read_text())
+    assert detail["hist"] is None
+
+
 def test_zero_window_station_still_emitted(prepared, tmp_path):
     """Stations with only historical transactions (none in trailing 4Q) must
     still appear in stations.json with null median_ppsm, label データ薄,

@@ -37,6 +37,27 @@ def _clean_num(v):
     return float(v)
 
 
+def _histograms(con, asof):
+    """Per-station ppsm histogram over the trailing HIST_WINDOW_QUARTERS."""
+    df = con.execute(
+        "select station, ppsm from clean_transactions where qidx between ? and ?",
+        [asof - config.HIST_WINDOW_QUARTERS + 1, asof],
+    ).df()
+    out = {}
+    for st, g in df.groupby("station"):
+        vals = g.ppsm.values
+        if len(vals) < config.HIST_MIN_TX:
+            out[st] = None
+            continue
+        counts, edges = np.histogram(vals, bins=config.HIST_BINS)
+        out[st] = {
+            "window_quarters": config.HIST_WINDOW_QUARTERS,
+            "bin_edges": [float(e) for e in edges],
+            "counts": [int(c) for c in counts],
+        }
+    return out
+
+
 def _dominant_ward(con):
     return dict(con.execute("""
         select station, mode(municipality) from clean_transactions group by 1
@@ -53,6 +74,7 @@ def build_docs(con, report):
             scored[col] = None
     scored = label_all(scored)
     wards = _dominant_ward(con)
+    hists = _histograms(con, asof)
 
     # Collision guard: two distinct station names must not map to the same safe id
     seen_ids: dict[str, str] = {}
@@ -180,6 +202,7 @@ def build_docs(con, report):
             "similar": similar,
             "hazard": r.get("hazard_detail") if isinstance(r.get("hazard_detail"), dict) else None,
             "landprice": r.get("landprice_series") if isinstance(r.get("landprice_series"), dict) else None,
+            "hist": hists.get(entry["name"], None),
         }
     # Build detail docs for zero-window stations (full historical series, similar=[])
     for entry in station_entries[len(scored):]:
@@ -192,6 +215,7 @@ def build_docs(con, report):
             "similar": [],
             "hazard": None,
             "landprice": None,
+            "hist": hists.get(entry["name"], None),
         }
 
     # Enrich meta.json sources with structured objects (item 6)

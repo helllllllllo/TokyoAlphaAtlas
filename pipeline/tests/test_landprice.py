@@ -1,6 +1,8 @@
+import json
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from atlas import landprice
 
@@ -15,6 +17,7 @@ STATIONS = pd.DataFrame({
 def test_nearest_point_series():
     df = landprice.add_landprice(STATIONS, src_dir=FIX / "landprice")
     s = df.set_index("name_norm").loc["中野", "landprice_series"]
+    # 2024 fixture uses L01_008 (=850000); 2023 fixture uses L01_006 (=800000)
     assert s == {"years": [2023, 2024], "price": [800000.0, 850000.0]}
 
 def test_too_far_gets_none():
@@ -24,3 +27,47 @@ def test_too_far_gets_none():
 def test_missing_dir_degrades(tmp_path):
     df = landprice.add_landprice(STATIONS, src_dir=tmp_path)
     assert df.landprice_series.isna().all() or df.landprice_series.isnull().all()
+
+def test_2024_uses_L01_008_attr(tmp_path):
+    """L01-2024 file with L01_008 column → correct price read; L01_006=1 ignored."""
+    lp_dir = tmp_path / "landprice"
+    lp_dir.mkdir()
+    feat = {"type": "FeatureCollection", "features": [
+        {"type": "Feature",
+         "properties": {"L01_006": 1, "L01_008": 920000},
+         "geometry": {"type": "Point", "coordinates": [139.6660, 35.7050]}}
+    ]}
+    (lp_dir / "L01-2024.geojson").write_text(json.dumps(feat))
+    st = pd.DataFrame({"name_norm": ["中野"], "lon": [139.6657], "lat": [35.7056]})
+    df = landprice.add_landprice(st, src_dir=lp_dir)
+    s = df.iloc[0]["landprice_series"]
+    assert s == {"years": [2024], "price": [920000.0]}
+
+def test_implausible_price_raises(tmp_path):
+    """L01-2024 file where L01_008 contains an implausible value (e.g. 1) raises."""
+    lp_dir = tmp_path / "landprice"
+    lp_dir.mkdir()
+    feat = {"type": "FeatureCollection", "features": [
+        {"type": "Feature",
+         "properties": {"L01_008": 1},
+         "geometry": {"type": "Point", "coordinates": [139.6660, 35.7050]}}
+    ]}
+    (lp_dir / "L01-2024.geojson").write_text(json.dumps(feat))
+    st = pd.DataFrame({"name_norm": ["中野"], "lon": [139.6657], "lat": [35.7056]})
+    with pytest.raises(ValueError, match="implausible land price"):
+        landprice.add_landprice(st, src_dir=lp_dir)
+
+def test_missing_price_attr_raises(tmp_path):
+    """File where the expected price attribute is absent raises with filename."""
+    lp_dir = tmp_path / "landprice"
+    lp_dir.mkdir()
+    feat = {"type": "FeatureCollection", "features": [
+        {"type": "Feature",
+         "properties": {"L01_006": 800000},
+         "geometry": {"type": "Point", "coordinates": [139.6660, 35.7050]}}
+    ]}
+    # Name it 2024 so the code expects L01_008
+    (lp_dir / "L01-2024.geojson").write_text(json.dumps(feat))
+    st = pd.DataFrame({"name_norm": ["中野"], "lon": [139.6657], "lat": [35.7056]})
+    with pytest.raises(ValueError, match="L01-2024.geojson"):
+        landprice.add_landprice(st, src_dir=lp_dir)

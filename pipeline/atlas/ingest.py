@@ -49,6 +49,14 @@ def ingest_transactions(con, src_dir: Path | None = None) -> int:
     return len(all_df)
 
 
+def _in_bbox(lon, lat, bbox=None) -> "pd.Series":
+    """Return boolean mask: True for points inside the bounding box."""
+    if bbox is None:
+        bbox = config.TOKYO_BBOX
+    lon_min, lat_min, lon_max, lat_max = bbox
+    return (lon >= lon_min) & (lon <= lon_max) & (lat >= lat_min) & (lat <= lat_max)
+
+
 def ingest_stations(con, n02_path: Path | None = None,
                     s12_path: Path | None = None) -> int:
     gdf = gpd.read_file(n02_path or config.RAW_DIR / "n02" / "stations.geojson")
@@ -61,6 +69,10 @@ def ingest_stations(con, n02_path: Path | None = None,
         "lat": pts.y,
     })
     df = df[df.name_norm != ""]  # nameless features would become a phantom "" station key
+    # Clip to Tokyo bbox BEFORE groupby to prevent same-name national stations
+    # (e.g. 神田/大手町/住吉) from merging across Japan and producing sea-coords
+    # or inflated ridership from non-Tokyo entries.
+    df = df[_in_bbox(df["lon"], df["lat"])]
     stations = df.groupby("name_norm").agg(
         lon=("lon", "mean"),
         lat=("lat", "mean"),
@@ -73,10 +85,17 @@ def ingest_stations(con, n02_path: Path | None = None,
     s12_file = s12_path or config.RAW_DIR / "s12" / "ridership.geojson"
     if Path(s12_file).exists():
         s12 = gpd.read_file(s12_file)
+        s12_rep = s12.geometry.representative_point()
         rid = pd.DataFrame({
             "name_norm": s12[config.S12_STATION_NAME].map(normalize),
             "ridership": pd.to_numeric(s12[config.S12_RIDERSHIP], errors="coerce"),
-        }).groupby("name_norm").ridership.sum().reset_index()
+            "_lon": s12_rep.x.values,
+            "_lat": s12_rep.y.values,
+        })
+        # Clip S12 to bbox BEFORE summing ridership to match the N02 clip
+        rid = rid[_in_bbox(rid["_lon"], rid["_lat"])]
+        rid = rid.drop(columns=["_lon", "_lat"])
+        rid = rid.groupby("name_norm").ridership.sum().reset_index()
         stations = stations.drop(columns=["ridership"]).merge(rid, on="name_norm", how="left")
 
     con.register("_st", stations)

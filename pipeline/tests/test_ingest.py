@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import duckdb
@@ -47,3 +48,59 @@ def test_ingest_stations_without_s12(con, tmp_path):
     rid = [r[0] for r in con.execute("select ridership from stations").fetchall()]
     assert len(rid) == 3
     assert all(r is None for r in rid)
+
+
+def test_ingest_stations_bbox_clip(tmp_path):
+    """Same-name stations inside and outside Tokyo bbox must not merge.
+    The out-of-bbox entry (Kyushu coords) must be excluded entirely so the
+    merged station has only-Tokyo coordinates and only in-bbox ridership."""
+    # N02 fixture: 神田 appearing twice — once in Tokyo, once in Kyushu (fake)
+    n02 = {
+        "type": "FeatureCollection",
+        "features": [
+            # In-bbox: Tokyo 神田
+            {"type": "Feature",
+             "properties": {"N02_003": "中央線", "N02_004": "JR東日本", "N02_005": "神田"},
+             "geometry": {"type": "LineString",
+                          "coordinates": [[139.771, 35.692], [139.772, 35.692]]}},
+            # Out-of-bbox: fake 神田 in Kyushu
+            {"type": "Feature",
+             "properties": {"N02_003": "鹿児島線", "N02_004": "JR九州", "N02_005": "神田"},
+             "geometry": {"type": "LineString",
+                          "coordinates": [[130.400, 33.600], [130.401, 33.600]]}},
+        ],
+    }
+    # S12 fixture: ridership for 神田 — one in Tokyo (50000), one out-of-bbox (99999)
+    s12 = {
+        "type": "FeatureCollection",
+        "features": [
+            {"type": "Feature",
+             "properties": {"S12_001": "神田", "S12_033": 50000},
+             "geometry": {"type": "Point", "coordinates": [139.771, 35.692]}},
+            {"type": "Feature",
+             "properties": {"S12_001": "神田", "S12_033": 99999},
+             "geometry": {"type": "Point", "coordinates": [130.400, 33.600]}},
+        ],
+    }
+    n02_path = tmp_path / "n02.geojson"
+    s12_path = tmp_path / "s12.geojson"
+    n02_path.write_text(json.dumps(n02))
+    s12_path.write_text(json.dumps(s12))
+
+    con = duckdb.connect()
+    n = ingest.ingest_stations(con, n02_path=n02_path, s12_path=s12_path)
+    assert n == 1  # only the Tokyo 神田 survives
+
+    row = con.execute(
+        "select lon, lat, ridership, lines from stations where name_norm = '神田'"
+    ).fetchone()
+    assert row is not None
+    lon, lat, ridership, lines = row
+    # Coords must be in Tokyo, not averaged with Kyushu
+    assert 139.2 <= lon <= 140.2, f"lon {lon} outside Tokyo bbox"
+    assert 35.3 <= lat <= 36.1, f"lat {lat} outside Tokyo bbox"
+    # Ridership must only sum in-bbox entry (50000), not the Kyushu entry (99999)
+    assert ridership == 50000, f"expected 50000, got {ridership}"
+    # Lines must only include the Tokyo line
+    assert "中央線" in lines
+    assert "鹿児島線" not in lines

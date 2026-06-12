@@ -27,23 +27,42 @@ def add_landprice(stations: pd.DataFrame, src_dir: Path | None = None) -> pd.Dat
         crs=4326,
     ).to_crs(config.METRIC_CRS).reset_index(drop=True)
 
+    _PRICE_MIN = 10_000      # ¥/m² — implausible floor
+    _PRICE_MAX = 100_000_000  # ¥/m² — implausible ceiling
+
     per_station: list[dict] = [dict() for _ in range(len(stations))]
     for f in files:
         m = _YEAR_RE.search(f.name)
         if m is None:
             continue
         year = int(m.group(1))
+        # Per-year attribute override (L01-2024 moved price col from L01_006 → L01_008)
+        price_attr = config.LANDPRICE_PRICE_ATTR_BY_YEAR.get(year, config.LANDPRICE_PRICE_ATTR)
         lp = gpd.read_file(f).to_crs(config.METRIC_CRS)
-        joined = gpd.sjoin_nearest(pts, lp[[config.LANDPRICE_PRICE_ATTR, "geometry"]],
+        if price_attr not in lp.columns:
+            raise ValueError(
+                f"{f.name}: expected price attribute '{price_attr}' not found "
+                f"(available: {sorted(lp.columns.tolist())}). "
+                f"Update LANDPRICE_PRICE_ATTR_BY_YEAR in config.py for year {year}."
+            )
+        joined = gpd.sjoin_nearest(pts, lp[[price_attr, "geometry"]],
                                    how="left", max_distance=MAX_DIST_M,
                                    distance_col="_d")
         # equidistant ties duplicate rows — keep the first match per station
         joined = joined[~joined.index.duplicated(keep="first")]
-        prices = joined[config.LANDPRICE_PRICE_ATTR]
+        prices = joined[price_attr]
         for i in range(len(stations)):
             price = prices.iloc[i]
             if pd.notna(price):
-                per_station[i][year] = float(price)
+                fval = float(price)
+                if not (_PRICE_MIN <= fval <= _PRICE_MAX):
+                    raise ValueError(
+                        f"{f.name}: implausible land price {fval} ¥/m² from attribute "
+                        f"'{price_attr}' (valid range {_PRICE_MIN}–{_PRICE_MAX}). "
+                        f"Likely attribute name drift — check LANDPRICE_PRICE_ATTR_BY_YEAR "
+                        f"in config.py for year {year}."
+                    )
+                per_station[i][year] = fval
 
     series = []
     for rec in per_station:

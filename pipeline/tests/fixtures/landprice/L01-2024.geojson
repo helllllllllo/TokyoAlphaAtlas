@@ -1,4 +1,4 @@
 {"type": "FeatureCollection", "features": [
-  {"type": "Feature", "properties": {"L01_006": 850000},
+  {"type": "Feature", "properties": {"L01_006": 1, "L01_008": 850000},
    "geometry": {"type": "Point", "coordinates": [139.6660, 35.7050]}}
 ]}

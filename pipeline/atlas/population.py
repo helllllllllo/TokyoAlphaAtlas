@@ -30,18 +30,21 @@ def add_population(stations: pd.DataFrame, mesh_path: Path | None = None) -> pd.
     ).to_crs(config.METRIC_CRS)
     pts["geometry"] = pts.geometry.buffer(config.POP_BUFFER_M)
 
+    tree = mesh.sindex
     changes, densities = [], []
     for _, st in pts.iterrows():
-        inter = mesh.geometry.intersection(st.geometry)
+        cand = tree.query(st.geometry, predicate="intersects")
+        sub = mesh.iloc[cand]
+        inter = sub.geometry.intersection(st.geometry)
         w = inter.area
         sel = w > 0
         if not sel.any():
             changes.append(np.nan)
             densities.append(np.nan)
             continue
-        frac = (w[sel] / mesh.cell_area[sel])
-        base = float((mesh.base[sel] * frac).sum())
-        future = float((mesh.future[sel] * frac).sum())
+        frac = (w[sel] / sub.cell_area[sel])
+        base = float((sub.base[sel] * frac).sum())
+        future = float((sub.future[sel] * frac).sum())
         changes.append(future / base - 1 if base > 0 else np.nan)
         densities.append(base / (st.geometry.area / 1e6))
     out["pop_change"] = changes

@@ -2,7 +2,6 @@ import argparse
 from pathlib import Path
 
 import duckdb
-import pandas as pd
 
 from atlas import aggregate, config, emit, hazard, ingest, landprice, normalize, population
 from atlas.quarters import qlabel

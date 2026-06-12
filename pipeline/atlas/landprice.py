@@ -22,20 +22,28 @@ def add_landprice(stations: pd.DataFrame, src_dir: Path | None = None) -> pd.Dat
         return out
 
     pts = gpd.GeoDataFrame(
-        stations.copy(),
+        stations[[]].copy(),
         geometry=[Point(xy) for xy in zip(stations.lon, stations.lat)],
         crs=4326,
-    ).to_crs(config.METRIC_CRS)
+    ).to_crs(config.METRIC_CRS).reset_index(drop=True)
 
     per_station: list[dict] = [dict() for _ in range(len(stations))]
     for f in files:
-        year = int(_YEAR_RE.search(f.name).group(1))
+        m = _YEAR_RE.search(f.name)
+        if m is None:
+            continue
+        year = int(m.group(1))
         lp = gpd.read_file(f).to_crs(config.METRIC_CRS)
-        for i, st in enumerate(pts.geometry):
-            d = lp.geometry.distance(st)
-            j = d.idxmin()
-            if d.loc[j] <= MAX_DIST_M:
-                per_station[i][year] = float(lp.loc[j, config.LANDPRICE_PRICE_ATTR])
+        joined = gpd.sjoin_nearest(pts, lp[[config.LANDPRICE_PRICE_ATTR, "geometry"]],
+                                   how="left", max_distance=MAX_DIST_M,
+                                   distance_col="_d")
+        # equidistant ties duplicate rows — keep the first match per station
+        joined = joined[~joined.index.duplicated(keep="first")]
+        prices = joined[config.LANDPRICE_PRICE_ATTR]
+        for i in range(len(stations)):
+            price = prices.iloc[i]
+            if pd.notna(price):
+                per_station[i][year] = float(price)
 
     series = []
     for rec in per_station:

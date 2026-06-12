@@ -123,9 +123,12 @@ def build_docs(con, report):
     return stations_doc, quarters_doc, detail_docs, meta_doc
 
 
-def emit_all(con, report, out_dir: Path | None = None):
+def emit_all(con, report, out_dir: Path | None = None,
+             rail_src: Path | None = None, hazard_dir: Path | None = None):
     """Build all docs in memory, validate ALL against schemas, only then write."""
     out_dir = Path(out_dir or config.OUT_DIR)
+    rail_src = Path(rail_src or config.RAW_DIR / "n02" / "rail_sections.geojson")
+    hazard_dir = Path(hazard_dir or config.RAW_DIR / "hazard")
     stations_doc, quarters_doc, detail_docs, meta_doc = build_docs(con, report)
 
     jsonschema.validate(stations_doc, schemas.STATIONS_SCHEMA)
@@ -148,18 +151,20 @@ def emit_all(con, report, out_dir: Path | None = None):
     for sid, doc in detail_docs.items():
         dump(tmp / "station" / f"{sid}.json", doc)
 
-    rail_src = config.RAW_DIR / "n02" / "rail_sections.geojson"
     if rail_src.exists():
         rail = gpd.read_file(rail_src)
-        rail = rail.rename(columns={config.N02_LINE: "line", config.N02_OPERATOR: "operator"})
-        rail[["line", "operator", "geometry"]].to_file(tmp / "rail.geojson", driver="GeoJSON")
-    hz_dir = config.RAW_DIR / "hazard"
+        missing = {config.N02_LINE, config.N02_OPERATOR} - set(rail.columns)
+        if missing:
+            print(f"emit: rail_sections missing columns {missing}, skipping overlay")
+        else:
+            rail = rail.rename(columns={config.N02_LINE: "line", config.N02_OPERATOR: "operator"})
+            rail[["line", "operator", "geometry"]].to_file(tmp / "rail.geojson", driver="GeoJSON")
     (tmp / "hazard").mkdir(exist_ok=True)
     for name in ("flood", "landslide"):
-        src = hz_dir / f"{name}.geojson"
+        src = hazard_dir / f"{name}.geojson"
         if src.exists():
             g = gpd.read_file(src)
-            g["geometry"] = g.geometry.simplify(0.0003)
+            g["geometry"] = g.geometry.make_valid().simplify(0.0003)
             g.to_file(tmp / "hazard" / f"{name}.geojson", driver="GeoJSON")
 
     old = out_dir.parent / (out_dir.name + ".old")

@@ -1,12 +1,28 @@
 import json
+import shutil
 from pathlib import Path
 
 import duckdb
+import geopandas as gpd
 import pytest
 
 from atlas import aggregate, emit, ingest, normalize
 
 FIX = Path(__file__).parent / "fixtures"
+
+RAIL_OK = {"type": "FeatureCollection", "features": [
+    {"type": "Feature",
+     "properties": {"N02_003": "中央線", "N02_004": "東日本旅客鉄道"},
+     "geometry": {"type": "LineString",
+                  "coordinates": [[139.6650, 35.7056], [139.6660, 35.7056]]}}
+]}
+
+RAIL_BAD_COLS = {"type": "FeatureCollection", "features": [
+    {"type": "Feature",
+     "properties": {"foo": "bar"},
+     "geometry": {"type": "LineString",
+                  "coordinates": [[139.6650, 35.7056], [139.6660, 35.7056]]}}
+]}
 
 @pytest.fixture
 def prepared(tmp_path):
@@ -46,6 +62,40 @@ def test_emit_validates_before_writing(prepared, monkeypatch):
         emit.emit_all(con, report, out_dir=out)
     assert not out.exists(), \
         f"emit wrote output despite validation failure: {sorted(out.iterdir())}"
+
+def test_emit_rail_overlay_written(prepared, tmp_path):
+    con, report, out = prepared
+    rail_src = tmp_path / "rail_sections.geojson"
+    rail_src.write_text(json.dumps(RAIL_OK))
+    emit.emit_all(con, report, out_dir=out, rail_src=rail_src)
+    rail_out = out / "rail.geojson"
+    assert rail_out.exists()
+    rail = gpd.read_file(rail_out)
+    assert set(rail.columns) >= {"line", "operator", "geometry"}
+    assert rail.line.iloc[0] == "中央線"
+    assert rail.operator.iloc[0] == "東日本旅客鉄道"
+
+def test_emit_rail_overlay_missing_columns_skipped(prepared, tmp_path, capsys):
+    con, report, out = prepared
+    rail_src = tmp_path / "rail_sections.geojson"
+    rail_src.write_text(json.dumps(RAIL_BAD_COLS))
+    emit.emit_all(con, report, out_dir=out, rail_src=rail_src)
+    assert not (out / "rail.geojson").exists()
+    # JSON artifacts still emitted
+    assert (out / "stations.json").exists()
+    assert "skipping overlay" in capsys.readouterr().out
+
+def test_emit_hazard_overlay_written(prepared, tmp_path):
+    con, report, out = prepared
+    hz_dir = tmp_path / "hazard"
+    hz_dir.mkdir()
+    shutil.copy(FIX / "a31_flood.geojson", hz_dir / "flood.geojson")
+    emit.emit_all(con, report, out_dir=out, hazard_dir=hz_dir)
+    flood_out = out / "hazard" / "flood.geojson"
+    assert flood_out.exists()
+    g = gpd.read_file(flood_out)
+    assert len(g) == 1
+    assert g.geometry.iloc[0].is_valid
 
 def test_safe_id():
     assert emit._safe_id("A/B") == "A_B"

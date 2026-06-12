@@ -37,24 +37,37 @@ def add_hazard(stations: pd.DataFrame,
     if flood_path.exists():
         flood = gpd.read_file(flood_path).to_crs(config.METRIC_CRS)
         flood["w"] = flood[config.FLOOD_RANK_ATTR].map(
-            lambda r: config.FLOOD_DEPTH_WEIGHTS.get(int(r), 1.0) if pd.notna(r) else 0.5)
+            lambda r: config.FLOOD_DEPTH_WEIGHTS.get(int(float(r)), 1.0) if pd.notna(r) else 0.5)
+        tree = flood.sindex
         fracs = []
         for i, buf in buffers.iterrows():
-            inter = flood.geometry.intersection(buf.geometry)
-            weighted = float((inter.area * flood.w).sum())
+            cand = tree.query(buf.geometry, predicate="intersects")
+            sub = flood.iloc[cand]
+            inter = sub.geometry.intersection(buf.geometry)
+            weighted = float((inter.area * sub.w).sum())
             fracs.append(min(weighted / buf_area.loc[i], 1.0))
         flood_frac = pd.Series(fracs, index=buffers.index)
 
     slide_flag = None
     if landslide_path.exists():
         slide = gpd.read_file(landslide_path).to_crs(config.METRIC_CRS)
-        slide_flag = buffers.geometry.apply(lambda b: bool(slide.intersects(b).any()))
+        tree = slide.sindex
+        flags = []
+        for i, buf in buffers.iterrows():
+            cand = tree.query(buf.geometry, predicate="intersects")
+            flags.append(len(cand) > 0)
+        slide_flag = pd.Series(flags, index=buffers.index)
 
     liq_frac = None
     if liq_path.exists():
         liq = gpd.read_file(liq_path).to_crs(config.METRIC_CRS)
-        liq_frac = buffers.geometry.apply(
-            lambda b: min(float(liq.geometry.intersection(b).area.sum()) / b.area, 1.0))
+        tree = liq.sindex
+        fracs = []
+        for i, buf in buffers.iterrows():
+            cand = tree.query(buf.geometry, predicate="intersects")
+            inter = liq.iloc[cand].geometry.intersection(buf.geometry)
+            fracs.append(min(float(inter.area.sum()) / buf_area.loc[i], 1.0))
+        liq_frac = pd.Series(fracs, index=buffers.index)
 
     components = {"flood": flood_frac,
                   "landslide": None if slide_flag is None else slide_flag.astype(float),

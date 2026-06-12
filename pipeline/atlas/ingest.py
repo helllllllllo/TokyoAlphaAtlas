@@ -62,6 +62,34 @@ def _in_bbox(lon, lat, bbox=None) -> "pd.Series":
     return (lon >= lon_min) & (lon <= lon_max) & (lat >= lat_min) & (lat <= lat_max)
 
 
+def _drop_distant_homonyms(df: pd.DataFrame, lon_col: str = "lon",
+                           lat_col: str = "lat") -> pd.DataFrame:
+    """Within each name_norm group, keep only members within
+    SAME_NAME_MERGE_RADIUS_KM of the member closest to Tokyo Station.
+
+    The bbox clip alone is not enough: distant same-name stations inside the
+    generous bbox (霞ヶ関/川越, 小川町/埼玉, 入谷/相模原, 平和台/流山,
+    栄町/千葉モノレール) would still merge and pull positions 8–30km off.
+    Legitimate multi-line merges (members within the radius of the anchor)
+    are unaffected."""
+    from atlas.score import haversine_km
+
+    if df.empty:
+        return df
+    lon0, lat0 = config.TOKYO_STATION
+    d_tokyo = pd.Series(
+        haversine_km(df[lon_col].astype(float), df[lat_col].astype(float), lon0, lat0),
+        index=df.index,
+    )
+    anchor_idx = d_tokyo.groupby(df["name_norm"]).idxmin()
+    anchor = df.loc[anchor_idx, ["name_norm", lon_col, lat_col]].set_index("name_norm")
+    a_lon = df["name_norm"].map(anchor[lon_col]).astype(float)
+    a_lat = df["name_norm"].map(anchor[lat_col]).astype(float)
+    d_anchor = haversine_km(df[lon_col].astype(float), df[lat_col].astype(float),
+                            a_lon, a_lat)
+    return df[pd.Series(d_anchor, index=df.index) <= config.SAME_NAME_MERGE_RADIUS_KM]
+
+
 def ingest_stations(con, n02_path: Path | None = None,
                     s12_path: Path | None = None) -> int:
     gdf = gpd.read_file(n02_path or config.RAW_DIR / "n02" / "stations.geojson")
@@ -78,6 +106,9 @@ def ingest_stations(con, n02_path: Path | None = None,
     # (e.g. 神田/大手町/住吉) from merging across Japan and producing sea-coords
     # or inflated ridership from non-Tokyo entries.
     df = df[_in_bbox(df["lon"], df["lat"])]
+    # Within the bbox, drop same-name members far from the one closest to
+    # Tokyo Station (distant homonyms must not merge).
+    df = _drop_distant_homonyms(df)
     stations = df.groupby("name_norm").agg(
         lon=("lon", "mean"),
         lat=("lat", "mean"),
@@ -99,6 +130,8 @@ def ingest_stations(con, n02_path: Path | None = None,
         })
         # Clip S12 to bbox BEFORE summing ridership to match the N02 clip
         rid = rid[_in_bbox(rid["_lon"], rid["_lat"])]
+        # Same homonym rule as N02 so ridership doesn't sum the distant twin
+        rid = _drop_distant_homonyms(rid, lon_col="_lon", lat_col="_lat")
         rid = rid.drop(columns=["_lon", "_lat"])
         rid = rid.groupby("name_norm").ridership.sum().reset_index()
         stations = stations.drop(columns=["ridership"]).merge(rid, on="name_norm", how="left")

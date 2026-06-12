@@ -35,6 +35,7 @@ HAZARD_WEIGHTS = {"flood": 0.6, "landslide": 0.25, "liquefaction": 0.15}
 POP_BASE_ATTR = "PTN_2025"
 POP_FUTURE_ATTR = "PTN_2045"
 TOKYO_BBOX = (139.2, 35.3, 140.2, 36.1)  # lon_min, lat_min, lon_max, lat_max — generous box around 23 wards incl. neighboring-prefecture border stations
+SAME_NAME_MERGE_RADIUS_KM = 10  # same-name members farther than this from the member closest to Tokyo Station are distant homonyms (霞ヶ関/川越, 小川町/埼玉 …) and must not merge
 LANDPRICE_PRICE_ATTR = "L01_006"
 LANDPRICE_PRICE_ATTR_BY_YEAR = {2024: "L01_008"}  # L01-2024 moved price from L01_006 → L01_008
 METRIC_CRS = 6677                # JGD2011 Plane Rectangular CS IX (Tokyo)

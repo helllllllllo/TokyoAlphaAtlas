@@ -104,3 +104,71 @@ def test_ingest_stations_bbox_clip(tmp_path):
     # Lines must only include the Tokyo line
     assert "中央線" in lines
     assert "鹿児島線" not in lines
+
+
+def test_ingest_stations_distant_homonyms_not_merged(tmp_path):
+    """Same-name stations both inside the bbox but ~30km apart must not merge:
+    only the member closest to Tokyo Station survives. A pair ~1km apart
+    (legitimate multi-line station) still merges as before."""
+    n02 = {
+        "type": "FeatureCollection",
+        "features": [
+            # 霞ヶ関 in Chiyoda (close to Tokyo Station)
+            {"type": "Feature",
+             "properties": {"N02_003": "丸ノ内線", "N02_004": "東京地下鉄", "N02_005": "霞ヶ関"},
+             "geometry": {"type": "LineString",
+                          "coordinates": [[139.745, 35.674], [139.746, 35.674]]}},
+            # 霞ヶ関 in Kawagoe — inside bbox but ~30km away
+            {"type": "Feature",
+             "properties": {"N02_003": "東武東上線", "N02_004": "東武鉄道", "N02_005": "霞ヶ関"},
+             "geometry": {"type": "LineString",
+                          "coordinates": [[139.448, 35.915], [139.449, 35.915]]}},
+            # 中野 two line entries ~1km apart → must still merge
+            {"type": "Feature",
+             "properties": {"N02_003": "中央線", "N02_004": "東日本旅客鉄道", "N02_005": "中野"},
+             "geometry": {"type": "LineString",
+                          "coordinates": [[139.6657, 35.7056], [139.6667, 35.7056]]}},
+            {"type": "Feature",
+             "properties": {"N02_003": "東西線", "N02_004": "東京地下鉄", "N02_005": "中野"},
+             "geometry": {"type": "LineString",
+                          "coordinates": [[139.6740, 35.7100], [139.6750, 35.7100]]}},
+        ],
+    }
+    s12 = {
+        "type": "FeatureCollection",
+        "features": [
+            {"type": "Feature",
+             "properties": {"S12_001": "霞ヶ関", "S12_033": 80000},
+             "geometry": {"type": "Point", "coordinates": [139.745, 35.674]}},
+            # distant homonym's ridership must NOT be summed in
+            {"type": "Feature",
+             "properties": {"S12_001": "霞ヶ関", "S12_033": 7777},
+             "geometry": {"type": "Point", "coordinates": [139.448, 35.915]}},
+            {"type": "Feature",
+             "properties": {"S12_001": "中野", "S12_033": 140000},
+             "geometry": {"type": "Point", "coordinates": [139.6657, 35.7056]}},
+        ],
+    }
+    n02_path = tmp_path / "n02.geojson"
+    s12_path = tmp_path / "s12.geojson"
+    n02_path.write_text(json.dumps(n02))
+    s12_path.write_text(json.dumps(s12))
+
+    con = duckdb.connect()
+    n = ingest.ingest_stations(con, n02_path=n02_path, s12_path=s12_path)
+    assert n == 2  # 霞ヶ関 (Chiyoda only) + 中野 (merged)
+
+    lon, lat, ridership, lines = con.execute(
+        "select lon, lat, ridership, lines from stations where name_norm = '霞ヶ関'"
+    ).fetchone()
+    # Chiyoda coords, not a Kawagoe-averaged midpoint
+    assert abs(lon - 139.745) < 0.02 and abs(lat - 35.674) < 0.02
+    assert ridership == 80000  # Kawagoe twin's 7777 not summed
+    assert "丸ノ内線" in lines and "東武東上線" not in lines
+
+    # legitimate close pair still merges with both lines
+    lines_nakano, n_lines = con.execute(
+        "select lines, n_lines from stations where name_norm = '中野'"
+    ).fetchone()
+    assert sorted(lines_nakano) == ["中央線", "東西線"]
+    assert n_lines == 2

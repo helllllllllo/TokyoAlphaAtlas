@@ -3,6 +3,7 @@ import re
 import shutil
 from pathlib import Path
 
+import geopandas as gpd
 import jsonschema
 import numpy as np
 import pandas as pd
@@ -146,6 +147,20 @@ def emit_all(con, report, out_dir: Path | None = None):
     dump(tmp / "meta.json", meta_doc)
     for sid, doc in detail_docs.items():
         dump(tmp / "station" / f"{sid}.json", doc)
+
+    rail_src = config.RAW_DIR / "n02" / "rail_sections.geojson"
+    if rail_src.exists():
+        rail = gpd.read_file(rail_src)
+        rail = rail.rename(columns={config.N02_LINE: "line", config.N02_OPERATOR: "operator"})
+        rail[["line", "operator", "geometry"]].to_file(tmp / "rail.geojson", driver="GeoJSON")
+    hz_dir = config.RAW_DIR / "hazard"
+    (tmp / "hazard").mkdir(exist_ok=True)
+    for name in ("flood", "landslide"):
+        src = hz_dir / f"{name}.geojson"
+        if src.exists():
+            g = gpd.read_file(src)
+            g["geometry"] = g.geometry.simplify(0.0003)
+            g.to_file(tmp / "hazard" / f"{name}.geojson", driver="GeoJSON")
 
     old = out_dir.parent / (out_dir.name + ".old")
     if old.exists():

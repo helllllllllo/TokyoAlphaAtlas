@@ -59,3 +59,16 @@ input, select {
 }
 .station-tip .maplibregl-popup-tip { border-top-color: var(--accent); }
 .tip-dim { color: var(--dim); }
+
+.time-slider {
+  position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+  z-index: 10; display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+}
+.time-slider input[type="range"] { width: 280px; accent-color: var(--accent); }
+.time-slider .play {
+  background: none; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--dim); width: 28px; height: 24px; cursor: pointer; font-size: 10px;
+}
+.time-slider .q-label { font-size: 12px; color: var(--text); min-width: 110px; }
+.time-slider .q-hint { font-size: 10px; color: var(--faint); }
+.time-slider.disabled { opacity: 0.55; }

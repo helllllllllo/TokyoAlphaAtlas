@@ -7,6 +7,7 @@ import { lensByKey } from "../lib/lenses";
 import { useApp } from "../store";
 import { Legend } from "../components/Legend";
 import { LensTabs } from "../components/LensTabs";
+import { TimeSlider } from "../components/TimeSlider";
 
 const EMPTY: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 
@@ -103,6 +104,7 @@ export function MapScreen() {
       <div ref={containerRef} className="map-container" />
       <LensTabs />
       <Legend />
+      <TimeSlider />
     </div>
   );
 }

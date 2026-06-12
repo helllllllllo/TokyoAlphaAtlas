@@ -32,13 +32,17 @@ def label_station(m: dict, ctx: dict) -> str:
 
 def label_all(df: pd.DataFrame) -> pd.DataFrame:
     ctx = {
-        "growth_p75": df.growth_1y.dropna().quantile(0.75),
+        # no growth data anywhere → momentum rule explicitly disabled
+        # (legitimate for short-history runs)
+        "growth_p75": df.growth_1y.dropna().quantile(0.75)
+                      if df.growth_1y.notna().any() else float("inf"),
         "hazard_p50": df.hazard_score.dropna().quantile(0.5)
-                      if "hazard_score" in df.columns and df.get("hazard_score") is not None
-                         and df.hazard_score.notna().any() else 50.0,
+                      if "hazard_score" in df.columns and df.hazard_score.notna().any()
+                      else 50.0,
         "vol_p25": df.volatility.dropna().quantile(0.25)
                    if df.volatility.notna().any() else 0.0,
-        "price_p90": df.median_ppsm.quantile(0.9),
+        "price_p90": df.median_ppsm.quantile(0.9)
+                     if df.median_ppsm.notna().any() else float("inf"),
     }
     df = df.copy()
     df["label"] = [label_station(row, ctx) for row in df.to_dict("records")]

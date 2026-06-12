@@ -51,3 +51,19 @@ def test_volatility_unit():
     qm = pd.DataFrame(rows)
     vol = aggregate.volatility(qm, asof=8006)
     assert vol["X"] == pytest.approx(np.std([0.1, -0.1, 0.1, -0.1, 0.1, -0.1], ddof=1), rel=1e-3)
+
+def test_volatility_zero_median_returns_none():
+    import pandas as pd
+    rows = [{"station": "X", "qidx": 8000 + i, "med": m, "n": 5}
+            for i, m in enumerate([100000.0, 0.0, 100000.0, 110000.0,
+                                   105000.0, 102000.0, 108000.0])]
+    qm = pd.DataFrame(rows)
+    vol = aggregate.volatility(qm, asof=8006)
+    assert vol["X"] is None
+
+def test_asof_empty_table_raises():
+    import duckdb
+    c = duckdb.connect()
+    c.execute("create table clean_transactions (qidx int)")
+    with pytest.raises(ValueError, match="clean_transactions is empty"):
+        aggregate.asof_qidx(c)

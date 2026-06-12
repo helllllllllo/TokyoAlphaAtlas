@@ -43,3 +43,10 @@ def test_label_all_builds_context():
                                     (0.20, 800_000), (0.04, 900_000)]])
     out = label_all(df)
     assert "label" in out.columns and len(out) == 5
+    assert out.loc[out.growth_1y == 0.20, "label"].iloc[0] == "モメンタム"
+
+def test_label_all_no_growth_data_does_not_crash():
+    df = pd.DataFrame([base(growth_1y=None, liquidity_score=90.0) for _ in range(4)])
+    out = label_all(df)
+    assert len(out) == 4
+    assert not (out.label == "モメンタム").any()

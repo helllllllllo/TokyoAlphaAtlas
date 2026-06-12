@@ -46,3 +46,30 @@ def test_knn_handles_missing_pop_density():
     })
     out = score.add_similarity(df, k=1)
     assert out.similar.map(len).eq(1).all()
+
+def test_build_scores_integration():
+    snapshot = pd.DataFrame({
+        "station": list("ABCDE"),
+        "median_ppsm": [500_000.0, 520_000.0, 510_000.0, 900_000.0, 905_000.0],
+        "tx_count": [12, 35, 8, 40, 20],
+        "growth_1y": [0.02, 0.05, np.nan, 0.10, 0.01],
+        "growth_3y": [np.nan] * 5,
+        "growth_5y": [np.nan] * 5,
+        "volatility": [0.03, 0.02, None, 0.01, 0.04],
+        "dispersion": [0.1, 0.12, 0.08, 0.2, 0.15],
+        "valid": [True, True, False, True, True],
+    })
+    stations = pd.DataFrame({
+        "name_norm": list("ABCDE"),
+        "lon": [139.60, 139.62, 139.64, 139.70, 139.72],
+        "lat": [35.70, 35.71, 35.69, 35.68, 35.67],
+        "lines": [["a"], ["a"], ["b"], ["c", "d"], ["e"]],
+        "n_lines": [1, 1, 1, 2, 1],
+        "n_operators": [1, 1, 1, 2, 1],
+        "ridership": [10_000, 20_000, 5_000, 300_000, 50_000],
+    })
+    out = score.build_scores(snapshot, stations)
+    assert len(out) == 5
+    for col in ["liquidity_score", "gravity", "dist_tokyo_km", "similar",
+                "relative_value", "confidence", "pop_resilience"]:
+        assert col in out.columns

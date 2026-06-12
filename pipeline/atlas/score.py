@@ -79,10 +79,10 @@ def build_scores(snapshot: pd.DataFrame, stations: pd.DataFrame) -> pd.DataFrame
     df = add_gravity(df)
     if "pop_density" not in df.columns:
         df["pop_density"] = np.nan
-    if "pop_change" in df.columns:
+    if "pop_change" in df.columns and df.pop_change.notna().any():
         df["pop_resilience"] = pct_rank(df.pop_change.astype(float).fillna(df.pop_change.median()))
     else:
-        df["pop_resilience"] = None
+        df["pop_resilience"] = np.nan
     df = add_similarity(df)
     df["confidence"] = df.tx_count.map(confidence)
     return df

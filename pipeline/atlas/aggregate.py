@@ -5,7 +5,10 @@ from atlas import config
 
 
 def asof_qidx(con) -> int:
-    return con.execute("select max(qidx) from clean_transactions").fetchone()[0]
+    qidx = con.execute("select max(qidx) from clean_transactions").fetchone()[0]
+    if qidx is None:
+        raise ValueError("clean_transactions is empty — run normalize stage first")
+    return qidx
 
 
 def window_stats(con, start_qidx, end_qidx) -> pd.DataFrame:
@@ -39,6 +42,9 @@ def volatility(qmed: pd.DataFrame, asof: int, lookback=12) -> dict:
     out = {}
     for st, g in recent.groupby("station"):
         g = g.sort_values("qidx")
+        if (g.med.values <= 0).any():  # log undefined — keep the None contract
+            out[st] = None
+            continue
         consec = np.diff(g.qidx.values) == 1
         diffs = np.diff(np.log(g.med.values))[consec]
         out[st] = float(np.std(diffs, ddof=1)) if len(diffs) >= config.MIN_VOL_OBS else None
@@ -62,4 +68,5 @@ def build_price_snapshot(con, asof: int) -> pd.DataFrame:
 
     vol = volatility(quarterly_medians(con), asof)
     now["volatility"] = now.station.map(vol)
+    now["dispersion"] = now.dispersion.replace([np.inf, -np.inf], np.nan)
     return now

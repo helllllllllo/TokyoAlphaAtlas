@@ -11,6 +11,8 @@ def _num(x):
 def label_station(m: dict, ctx: dict) -> str:
     """Rule-based, priority-ordered. `ctx` holds cross-station percentile
     thresholds. The matched rule is transparent — shown on the station card."""
+    # Checked first deliberately (spec lists it later): unreliable metrics must
+    # not win モメンタム etc.
     if m["confidence"] == 0:
         return "データ薄"
     hazard = m["hazard_score"] if _num(m.get("hazard_score")) else 0.0

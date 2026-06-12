@@ -19,7 +19,7 @@ STATION_ENTRY = {
                          "gravity", "confidence"],
             "additionalProperties": False,
             "properties": {
-                "median_ppsm": {"type": "number"},
+                "median_ppsm": {"type": ["number", "null"]},
                 "tx_count": {"type": "integer"},
                 "growth_1y": _metric_or_null, "growth_3y": _metric_or_null,
                 "growth_5y": _metric_or_null, "volatility": _metric_or_null,

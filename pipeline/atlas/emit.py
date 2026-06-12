@@ -7,6 +7,7 @@ import geopandas as gpd
 import jsonschema
 import numpy as np
 import pandas as pd
+from shapely.geometry import box as shapely_box
 
 from atlas import aggregate, config, schemas, score
 from atlas.config import SCHEMA_VERSION
@@ -53,6 +54,17 @@ def build_docs(con, report):
     scored = label_all(scored)
     wards = _dominant_ward(con)
 
+    # Collision guard: two distinct station names must not map to the same safe id
+    seen_ids: dict[str, str] = {}
+    for name in scored["station"]:
+        sid = _safe_id(name)
+        if sid in seen_ids and seen_ids[sid] != name:
+            raise ValueError(
+                f"safe_id collision: '{name}' and '{seen_ids[sid]}' "
+                f"both map to id '{sid}'"
+            )
+        seen_ids[sid] = name
+
     station_entries = []
     for r in scored.to_dict("records"):
         station_entries.append({
@@ -62,7 +74,7 @@ def build_docs(con, report):
             "lon": float(r["lon"]), "lat": float(r["lat"]),
             "label": r["label"],
             "metrics": {
-                "median_ppsm": float(r["median_ppsm"]),
+                "median_ppsm": _clean_num(r["median_ppsm"]),
                 "tx_count": int(r["tx_count"]),
                 "growth_1y": _clean_num(r["growth_1y"]),
                 "growth_3y": _clean_num(r["growth_3y"]),
@@ -70,17 +82,70 @@ def build_docs(con, report):
                 "volatility": _clean_num(r["volatility"]),
                 "dispersion": _clean_num(r["dispersion"]),
                 "liquidity_score": float(r["liquidity_score"]),
-                "relative_value": _clean_num(r["relative_value"]),
+                "relative_value": _clean_num(r.get("relative_value")),
                 "hazard_score": _clean_num(r.get("hazard_score")),
                 "pop_resilience": _clean_num(r.get("pop_resilience")),
                 "gravity": float(r["gravity"]),
                 "confidence": int(r["confidence"]),
             },
         })
+
+    # Zero-window stations: present in quarterly_medians but absent from the
+    # trailing-4Q snapshot (spec: never disappear — render as fog/データ薄).
+    qm = aggregate.quarterly_medians(con)
+    scored_names = set(scored["station"])
+    historical_stations = set(qm["station"].unique())
+    zero_window_names = historical_stations - scored_names
+    if zero_window_names:
+        st_lookup = stations_df.set_index("name_norm")
+        hist_wards = dict(con.execute("""
+            select station, mode(municipality) from clean_transactions group by 1
+        """).fetchall())
+        # Compute gravity for all stations so zero-window ones get a real value
+        try:
+            grav_series = score.add_gravity(
+                stations_df.rename(columns={"name_norm": "station"})
+            ).set_index("station")["gravity"]
+        except Exception:
+            grav_series = pd.Series(dtype=float)
+        for name in sorted(zero_window_names):
+            sid = _safe_id(name)
+            if sid in seen_ids and seen_ids[sid] != name:
+                raise ValueError(
+                    f"safe_id collision: '{name}' and '{seen_ids[sid]}' "
+                    f"both map to id '{sid}'"
+                )
+            seen_ids[sid] = name
+            if name not in st_lookup.index:
+                continue
+            st = st_lookup.loc[name]
+            grav_val = float(grav_series[name]) if name in grav_series.index else 50.0
+            hazard_val = _clean_num(st.get("hazard_score")) if "hazard_score" in st.index else None
+            pop_res_val = _clean_num(st.get("pop_resilience")) if "pop_resilience" in st.index else None
+            station_entries.append({
+                "id": sid, "name": name,
+                "ward": hist_wards.get(name, ""),
+                "lines": list(st.get("lines", [])),
+                "lon": float(st["lon"]), "lat": float(st["lat"]),
+                "label": "データ薄",
+                "metrics": {
+                    "median_ppsm": None,
+                    "tx_count": 0,
+                    "growth_1y": None, "growth_3y": None, "growth_5y": None,
+                    "volatility": None,
+                    "dispersion": None,
+                    "liquidity_score": 0.0,
+                    "relative_value": None,
+                    "hazard_score": hazard_val,
+                    "pop_resilience": pop_res_val,
+                    "gravity": grav_val,
+                    "confidence": 0,
+                },
+            })
+
     stations_doc = {"schema_version": SCHEMA_VERSION, "asof": qlabel(asof),
                     "stations": station_entries}
 
-    qm = aggregate.quarterly_medians(con)
     qmin, qmax = int(qm.qidx.min()), int(qm.qidx.max())
     quarter_labels = [qlabel(i) for i in range(qmin, qmax + 1)]
     per_station = {}
@@ -98,6 +163,7 @@ def build_docs(con, report):
 
     ppsm_by_id = {e["id"]: e["metrics"]["median_ppsm"] for e in station_entries}
     detail_docs = {}
+    # Build detail docs for scored stations (have full metrics + similar list)
     for r, entry in zip(scored.to_dict("records"), station_entries):
         sid = entry["id"]
         own_ppsm = entry["metrics"]["median_ppsm"]
@@ -115,11 +181,47 @@ def build_docs(con, report):
             "hazard": r.get("hazard_detail") if isinstance(r.get("hazard_detail"), dict) else None,
             "landprice": r.get("landprice_series") if isinstance(r.get("landprice_series"), dict) else None,
         }
+    # Build detail docs for zero-window stations (full historical series, similar=[])
+    for entry in station_entries[len(scored):]:
+        sid = entry["id"]
+        series = per_station.get(sid, {"m": [], "n": []})
+        detail_docs[sid] = {
+            "schema_version": SCHEMA_VERSION, "id": sid, "name": entry["name"],
+            "series": {"quarters": quarter_labels,
+                       "median_ppsm": series["m"], "tx_count": series["n"]},
+            "similar": [],
+            "hazard": None,
+            "landprice": None,
+        }
 
-    meta_doc = {"schema_version": SCHEMA_VERSION, "asof": qlabel(asof),
-                "generated_rows": {k: v for k, v in report.items()},
-                "sources": {"transactions": "MLIT 不動産取引価格情報",
-                            "stations": "国土数値情報 N02/S12"}}
+    # Enrich meta.json sources with structured objects (item 6)
+    n_stations_clean = int(con.execute("select count(*) from stations").fetchone()[0])
+    has_hazard = any(
+        col in con.execute("describe stations").df()["column_name"].tolist()
+        for col in ("hazard_score",)
+    )
+    stations_cols = con.execute("describe stations").df()["column_name"].tolist()
+    has_population = "pop_change" in stations_cols
+    has_landprice = "landprice_series" in stations_cols
+    meta_doc = {
+        "schema_version": SCHEMA_VERSION,
+        "asof": qlabel(asof),
+        "generated_rows": {k: v for k, v in report.items()},
+        "sources": {
+            "transactions": {
+                "label": "MLIT 不動産取引価格情報",
+                "rows_clean": report.get("rows_out", report.get("rows_in")),
+                "asof": qlabel(asof),
+            },
+            "stations": {
+                "label": "国土数値情報 N02/S12",
+                "count": n_stations_clean,
+            },
+            "hazard": has_hazard,
+            "population": has_population,
+            "landprice": has_landprice,
+        },
+    }
     return stations_doc, quarters_doc, detail_docs, meta_doc
 
 
@@ -158,7 +260,12 @@ def emit_all(con, report, out_dir: Path | None = None,
             print(f"emit: rail_sections missing columns {missing}, skipping overlay")
         else:
             rail = rail.rename(columns={config.N02_LINE: "line", config.N02_OPERATOR: "operator"})
-            rail[["line", "operator", "geometry"]].to_file(tmp / "rail.geojson", driver="GeoJSON")
+            # Clip rail to Tokyo bbox and simplify (item 5)
+            lon_min, lat_min, lon_max, lat_max = config.TOKYO_BBOX
+            bbox_geom = shapely_box(lon_min, lat_min, lon_max, lat_max)
+            rail_clipped = gpd.clip(rail[["line", "operator", "geometry"]], bbox_geom)
+            rail_clipped["geometry"] = rail_clipped.geometry.simplify(0.0003)
+            rail_clipped.to_file(tmp / "rail.geojson", driver="GeoJSON")
     (tmp / "hazard").mkdir(exist_ok=True)
     for name in ("flood", "landslide"):
         src = hazard_dir / f"{name}.geojson"

@@ -18,11 +18,16 @@ TX_COLUMNS = {
     "取引時期": "period_text",
 }
 
+# Columns to materialise from raw CSVs; price_type default logic still works
+# when "価格情報区分" is absent because usecols only keeps present columns.
+_KEEP = set(TX_COLUMNS) | {"価格情報区分"}
+
 
 def read_csv_any(path: Path) -> pd.DataFrame:
     for enc in ("cp932", "utf-8-sig"):
         try:
-            return pd.read_csv(path, encoding=enc, dtype=str)
+            return pd.read_csv(path, encoding=enc, dtype=str,
+                               usecols=lambda c: c in _KEEP)
         except UnicodeDecodeError:
             continue
     raise ValueError(f"cannot decode {path}")

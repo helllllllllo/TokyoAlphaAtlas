@@ -57,7 +57,6 @@ def test_build_scores_integration():
         "growth_5y": [np.nan] * 5,
         "volatility": [0.03, 0.02, None, 0.01, 0.04],
         "dispersion": [0.1, 0.12, 0.08, 0.2, 0.15],
-        "valid": [True, True, False, True, True],
     })
     stations = pd.DataFrame({
         "name_norm": list("ABCDE"),

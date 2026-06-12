@@ -56,7 +56,6 @@ def build_price_snapshot(con, asof: int) -> pd.DataFrame:
     now = window_stats(con, asof - 3, asof)
     now = now.rename(columns={"n": "tx_count"})
     now["dispersion"] = (now.p75 - now.p25) / now.median_ppsm
-    now["valid"] = now.tx_count >= config.MIN_WINDOW_TX
 
     for label, lag in (("growth_1y", 4), ("growth_3y", 12), ("growth_5y", 20)):
         then = window_stats(con, asof - 3 - lag, asof - lag)

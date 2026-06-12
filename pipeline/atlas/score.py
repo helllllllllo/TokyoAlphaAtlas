@@ -31,7 +31,13 @@ def confidence(tx_count) -> int:
 
 
 def add_gravity(df: pd.DataFrame) -> pd.DataFrame:
-    """gravity = mean of percentile(log ridership) and percentile(line count)."""
+    """gravity = mean of percentile(log ridership) and percentile(line count).
+
+    Note: n_operators is intentionally excluded. The spec wording "line/operator
+    count" is resolved as line count + ridership only — operator count would
+    double-count JR/metro branches without adding discriminative signal for
+    Tokyo urban stations where most multi-line hubs share the same 1–2 operators.
+    """
     rid = pd.to_numeric(df["ridership"], errors="coerce")
     rid_pct = pct_rank(np.log1p(rid.fillna(rid.median() if rid.notna().any() else 0)))
     line_pct = pct_rank(df["n_lines"].astype(float))
@@ -80,7 +86,11 @@ def build_scores(snapshot: pd.DataFrame, stations: pd.DataFrame) -> pd.DataFrame
     if "pop_density" not in df.columns:
         df["pop_density"] = np.nan
     if "pop_change" in df.columns and df.pop_change.notna().any():
-        df["pop_resilience"] = pct_rank(df.pop_change.astype(float).fillna(df.pop_change.median()))
+        # Rank only the notna subset; leave NaN stations as NaN (no median fill)
+        pop = df.pop_change.astype(float)
+        notna_mask = pop.notna()
+        ranks = pct_rank(pop[notna_mask])
+        df["pop_resilience"] = ranks.reindex(df.index)
     else:
         df["pop_resilience"] = np.nan
     df = add_similarity(df)

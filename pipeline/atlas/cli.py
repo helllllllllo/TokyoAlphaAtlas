@@ -4,7 +4,7 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from atlas import aggregate, config, emit, hazard, ingest, normalize
+from atlas import aggregate, config, emit, hazard, ingest, normalize, population
 from atlas.quarters import qlabel
 
 
@@ -19,11 +19,12 @@ def refresh(tx_dir=None, n02_path=None, s12_path=None, out_dir=None, db_path=Non
 
         stations_df = con.execute("select * from stations").df()
         stations_df = hazard.add_hazard(stations_df)
+        stations_df = population.add_population(stations_df)
         con.register("_sth", stations_df)
         con.execute("create or replace table stations as select * from _sth")
         con.unregister("_sth")
-        n_hazard = int(stations_df.hazard_score.notna().sum())
-        print(f"hazard: scored {n_hazard}/{len(stations_df)} stations")
+        print(f"hazard: scored {int(stations_df.hazard_score.notna().sum())}/{len(stations_df)} stations")
+        print(f"population: scored {int(stations_df.pop_change.notna().sum())}/{len(stations_df)} stations")
 
         report = normalize.build_clean_transactions(con)
         for k, v in report.items():

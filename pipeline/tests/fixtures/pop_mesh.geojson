@@ -1,0 +1,10 @@
+{"type": "FeatureCollection", "features": [
+  {"type": "Feature", "properties": {"PTN_2025": 10000, "PTN_2045": 11000},
+   "geometry": {"type": "Polygon", "coordinates": [[
+     [139.655, 35.695], [139.676, 35.695], [139.676, 35.716], [139.655, 35.716], [139.655, 35.695]
+   ]]}},
+  {"type": "Feature", "properties": {"PTN_2025": 8000, "PTN_2045": 6400},
+   "geometry": {"type": "Polygon", "coordinates": [[
+     [139.640, 35.695], [139.655, 35.695], [139.655, 35.716], [139.640, 35.716], [139.640, 35.695]
+   ]]}}
+]}

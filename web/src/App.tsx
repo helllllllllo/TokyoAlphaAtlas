@@ -3,6 +3,7 @@ import { Route, Routes } from "react-router-dom";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { SearchBox } from "./components/SearchBox";
 import { TopBar } from "./components/TopBar";
+import { BenchmarkScreen } from "./screens/BenchmarkScreen";
 import { CompareScreen } from "./screens/CompareScreen";
 import { MapScreen } from "./screens/MapScreen";
 import { useApp } from "./store";
@@ -36,7 +37,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<MapScreen />} />
               <Route path="/compare" element={<CompareScreen />} />
-              <Route path="/benchmark" element={<p style={{ padding: 20 }}>査定（実装中）</p>} />
+              <Route path="/benchmark" element={<BenchmarkScreen />} />
             </Routes>
           </ErrorBoundary>
         )}

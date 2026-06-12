@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { SearchBox } from "./components/SearchBox";
 import { TopBar } from "./components/TopBar";
 import { MapScreen } from "./screens/MapScreen";
 import { useApp } from "./store";
@@ -25,7 +26,7 @@ export default function App() {
 
   return (
     <>
-      <TopBar />
+      <TopBar>{status === "ready" ? <SearchBox /> : undefined}</TopBar>
       <div className="screen">
         {status === "loading" ? (
           <p style={{ padding: 20, color: "var(--dim)" }}>読み込み中…</p>

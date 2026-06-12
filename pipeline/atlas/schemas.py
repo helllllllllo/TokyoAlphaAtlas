@@ -3,6 +3,7 @@ _metric_or_null = {"type": ["number", "null"]}
 STATION_ENTRY = {
     "type": "object",
     "required": ["id", "name", "ward", "lines", "lon", "lat", "metrics", "label"],
+    "additionalProperties": False,
     "properties": {
         "id": {"type": "string", "minLength": 1},
         "name": {"type": "string"},
@@ -16,6 +17,7 @@ STATION_ENTRY = {
                          "growth_5y", "volatility", "dispersion", "liquidity_score",
                          "relative_value", "hazard_score", "pop_resilience",
                          "gravity", "confidence"],
+            "additionalProperties": False,
             "properties": {
                 "median_ppsm": {"type": "number"},
                 "tx_count": {"type": "integer"},
@@ -48,7 +50,7 @@ QUARTERS_SCHEMA = {
     "required": ["schema_version", "quarters", "stations"],
     "properties": {
         "schema_version": {"type": "integer"},
-        "quarters": {"type": "array", "items": {"type": "string"}},
+        "quarters": {"type": "array", "minItems": 1, "items": {"type": "string"}},
         "stations": {
             "type": "object",
             "additionalProperties": {
@@ -100,7 +102,7 @@ META_SCHEMA = {
     "required": ["schema_version", "asof", "generated_rows", "sources"],
     "properties": {
         "schema_version": {"type": "integer"},
-        "asof": {"type": "string"},
+        "asof": {"type": "string", "pattern": "^\\d{4}Q[1-4]$"},
         "generated_rows": {"type": "object"},
         "sources": {"type": "object"},
     },

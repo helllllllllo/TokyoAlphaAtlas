@@ -1,4 +1,5 @@
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -10,6 +11,14 @@ from atlas import aggregate, config, schemas, score
 from atlas.config import SCHEMA_VERSION
 from atlas.label import label_all
 from atlas.quarters import qlabel
+
+
+_UNSAFE = re.compile(r'[/\\:*?"<>|#%]')
+
+
+def _safe_id(name: str) -> str:
+    """Filesystem- and URL-safe station id derived from the display name."""
+    return _UNSAFE.sub("_", name)
 
 
 def _jsonable(x):
@@ -46,7 +55,7 @@ def build_docs(con, report):
     station_entries = []
     for r in scored.to_dict("records"):
         station_entries.append({
-            "id": r["station"], "name": r["station"],
+            "id": _safe_id(r["station"]), "name": r["station"],
             "ward": wards.get(r["station"], ""),
             "lines": list(r["lines"]),
             "lon": float(r["lon"]), "lat": float(r["lat"]),
@@ -82,7 +91,7 @@ def build_docs(con, report):
             n[pos] = int(row.n)
             if row.n >= config.MIN_QUARTER_TX:
                 m[pos] = float(row.med)
-        per_station[st] = {"m": m, "n": n}
+        per_station[_safe_id(st)] = {"m": m, "n": n}
     quarters_doc = {"schema_version": SCHEMA_VERSION, "quarters": quarter_labels,
                     "stations": per_station}
 
@@ -90,14 +99,15 @@ def build_docs(con, report):
     detail_docs = {}
     for r, entry in zip(scored.to_dict("records"), station_entries):
         sid = entry["id"]
+        own_ppsm = entry["metrics"]["median_ppsm"]
         series = per_station.get(sid, {"m": [], "n": []})
-        similar = [{"id": s, "name": s,
-                    "median_ppsm": ppsm_by_id.get(s),
-                    "price_gap": (None if ppsm_by_id.get(s) is None else
-                                  ppsm_by_id[s] / entry["metrics"]["median_ppsm"] - 1)}
+        similar = [{"id": _safe_id(s), "name": s,
+                    "median_ppsm": ppsm_by_id.get(_safe_id(s)),
+                    "price_gap": (None if ppsm_by_id.get(_safe_id(s)) is None or own_ppsm == 0
+                                  else ppsm_by_id[_safe_id(s)] / own_ppsm - 1)}
                    for s in r["similar"]]
         detail_docs[sid] = {
-            "schema_version": SCHEMA_VERSION, "id": sid, "name": sid,
+            "schema_version": SCHEMA_VERSION, "id": sid, "name": entry["name"],
             "series": {"quarters": quarter_labels,
                        "median_ppsm": series["m"], "tx_count": series["n"]},
             "similar": similar,
@@ -137,6 +147,11 @@ def emit_all(con, report, out_dir: Path | None = None):
     for sid, doc in detail_docs.items():
         dump(tmp / "station" / f"{sid}.json", doc)
 
+    old = out_dir.parent / (out_dir.name + ".old")
+    if old.exists():
+        shutil.rmtree(old)
     if out_dir.exists():
-        shutil.rmtree(out_dir)
+        out_dir.rename(old)
     tmp.rename(out_dir)
+    if old.exists():
+        shutil.rmtree(old)

@@ -44,4 +44,43 @@ def test_emit_validates_before_writing(prepared, monkeypatch):
     monkeypatch.setattr(emit, "SCHEMA_VERSION", None)
     with pytest.raises(Exception):
         emit.emit_all(con, report, out_dir=out)
-    assert not out.exists() or not any(out.iterdir())
+    assert not out.exists(), \
+        f"emit wrote output despite validation failure: {sorted(out.iterdir())}"
+
+def test_safe_id():
+    assert emit._safe_id("A/B") == "A_B"
+    assert emit._safe_id('a\\b:c*d?e"f<g>h|i#j%k') == "a_b_c_d_e_f_g_h_i_j_k"
+    assert emit._safe_id("中野") == "中野"
+
+def test_emit_unsafe_station_name_end_to_end(prepared):
+    con, report, out = prepared
+    # Rename a station to contain a path separator; ids must be sanitized
+    # consistently across all artifacts while names keep the original string.
+    con.execute("update clean_transactions set station = 'A/B' where station = '中野'")
+    con.execute("update stations set name_norm = 'A/B' where name_norm = '中野'")
+    emit.emit_all(con, report, out_dir=out)
+
+    stations = json.loads((out / "stations.json").read_text())
+    by_id = {s["id"]: s for s in stations["stations"]}
+    assert "A_B" in by_id
+    assert by_id["A_B"]["name"] == "A/B"
+
+    quarters = json.loads((out / "quarters.json").read_text())
+    assert "A_B" in quarters["stations"]
+    assert "A/B" not in quarters["stations"]
+
+    detail_path = out / "station" / "A_B.json"
+    assert detail_path.exists()
+    detail = json.loads(detail_path.read_text())
+    assert detail["id"] == "A_B"
+    assert detail["name"] == "A/B"
+
+    # neighbors referencing the renamed station use the safe id + original name
+    other = json.loads((out / "station" / "高円寺.json").read_text())
+    sim_ids = {s["id"] for s in other["similar"]}
+    sim_names = {s["name"] for s in other["similar"]}
+    assert "A_B" in sim_ids
+    assert "A/B" in sim_names
+    for s in other["similar"]:
+        if s["id"] == "A_B":
+            assert s["median_ppsm"] == pytest.approx(660000)

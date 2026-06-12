@@ -11,31 +11,36 @@ def refresh(tx_dir=None, n02_path=None, s12_path=None, out_dir=None, db_path=Non
     db = Path(db_path or config.DB_PATH)
     db.parent.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect(str(db))
+    try:
+        n_tx = ingest.ingest_transactions(con, src_dir=tx_dir)
+        n_st = ingest.ingest_stations(con, n02_path=n02_path, s12_path=s12_path)
+        print(f"ingest: {n_tx} transactions, {n_st} stations")
 
-    n_tx = ingest.ingest_transactions(con, src_dir=tx_dir)
-    n_st = ingest.ingest_stations(con, n02_path=n02_path, s12_path=s12_path)
-    print(f"ingest: {n_tx} transactions, {n_st} stations")
+        report = normalize.build_clean_transactions(con)
+        for k, v in report.items():
+            print(f"normalize: {k} = {v}")
 
-    report = normalize.build_clean_transactions(con)
-    for k, v in report.items():
-        print(f"normalize: {k} = {v}")
+        asof = aggregate.asof_qidx(con)
+        print(f"asof: {qlabel(asof)}")
 
-    asof = aggregate.asof_qidx(con)
-    print(f"asof: {qlabel(asof)}")
-
-    emit.emit_all(con, report, out_dir=out_dir)
-    out = Path(out_dir or config.OUT_DIR)
-    print(f"emitted artifacts to {out}")
-    con.close()
+        emit.emit_all(con, report, out_dir=out_dir)
+        out = Path(out_dir or config.OUT_DIR)
+        print(f"emitted artifacts to {out}")
+    finally:
+        con.close()
 
 
 def main():
     parser = argparse.ArgumentParser(prog="atlas")
     sub = parser.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("refresh", help="run the full pipeline against data/raw/")
+    p_refresh = sub.add_parser("refresh", help="run the full pipeline against data/raw/")
+    p_refresh.add_argument("--out-dir", type=Path, default=None,
+                           help=f"artifact output directory (default: {config.OUT_DIR})")
+    p_refresh.add_argument("--db-path", type=Path, default=None,
+                           help=f"DuckDB working store path (default: {config.DB_PATH})")
     args = parser.parse_args()
     if args.cmd == "refresh":
-        refresh()
+        refresh(out_dir=args.out_dir, db_path=args.db_path)
 
 
 if __name__ == "__main__":

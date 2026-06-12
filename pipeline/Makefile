@@ -1,3 +1,5 @@
+DB_PATH ?= /tmp/atlas-dev.duckdb
+
 .PHONY: refresh test dev-data
 refresh:
 	uv run python -m atlas.cli refresh
@@ -15,4 +17,4 @@ dev-data:
 	  --population tests/fixtures/pop_mesh.geojson \
 	  --landprice-dir tests/fixtures/landprice \
 	  --out-dir ../web/public/data \
-	  --db-path /tmp/atlas-dev.duckdb
+	  --db-path $(DB_PATH)

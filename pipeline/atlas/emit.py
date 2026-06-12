@@ -49,6 +49,9 @@ def _histograms(con, asof):
         if len(vals) < config.HIST_MIN_TX:
             out[st] = None
             continue
+        if np.ptp(vals) == 0:
+            out[st] = None
+            continue
         counts, edges = np.histogram(vals, bins=config.HIST_BINS)
         out[st] = {
             "window_quarters": config.HIST_WINDOW_QUARTERS,

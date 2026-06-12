@@ -1,6 +1,7 @@
+import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 
-export function TopBar({ children }: { children?: React.ReactNode }) {
+export function TopBar({ children }: { children?: ReactNode }) {
   const cls = ({ isActive }: { isActive: boolean }) => (isActive ? "active" : "");
   return (
     <nav className="topbar">

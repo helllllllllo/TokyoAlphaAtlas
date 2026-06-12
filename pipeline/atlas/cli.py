@@ -68,7 +68,8 @@ def main():
                            help=f"DuckDB working store path (default: {config.DB_PATH})")
     p_refresh.add_argument("--hazard-dir", type=Path, default=None,
                            help="hazard source directory (default: data/raw/hazard)")
-    p_refresh.add_argument("--population", type=Path, default=None,
+    p_refresh.add_argument("--population", "--population-path", dest="population",
+                           type=Path, default=None,
                            help="population mesh GeoJSON path (default: data/raw/population/mesh.geojson)")
     p_refresh.add_argument("--landprice-dir", type=Path, default=None,
                            help="land price source directory (default: data/raw/landprice)")

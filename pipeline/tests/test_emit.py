@@ -190,6 +190,23 @@ def test_detail_hist_null_when_thin(prepared, tmp_path):
     assert detail["hist"] is None
 
 
+def test_detail_hist_null_when_degenerate(prepared, tmp_path):
+    con, report, out = prepared
+    # synthetic station with >= HIST_MIN_TX rows but all-identical ppsm:
+    # np.histogram on a zero-range sample yields meaningless bins → hist None
+    con.execute("""
+        insert into clean_transactions
+        select '均一駅', municipality, qidx, quarter, 600000.0, price, area, built_year, minutes, price_type
+        from clean_transactions where station = '中野'
+    """)
+    con.execute("""
+        insert into stations select '均一駅', * exclude(name_norm) from stations where name_norm = '中野'
+    """)
+    _hermetic_emit(con, report, out, tmp_path)
+    detail = json.loads((out / "station" / "均一駅.json").read_text())
+    assert detail["hist"] is None
+
+
 def test_zero_window_station_still_emitted(prepared, tmp_path):
     """Stations with only historical transactions (none in trailing 4Q) must
     still appear in stations.json with null median_ppsm, label データ薄,

@@ -94,7 +94,23 @@ DETAIL_SCHEMA = {
         },
         "hazard": {"type": ["object", "null"]},
         "landprice": {"type": ["object", "null"]},
-        "hist": {"type": ["object", "null"]},
+        "hist": {
+            "oneOf": [
+                {"type": "null"},
+                {
+                    "type": "object",
+                    "required": ["window_quarters", "bin_edges", "counts"],
+                    "additionalProperties": False,
+                    "properties": {
+                        "window_quarters": {"type": "integer", "minimum": 1},
+                        "bin_edges": {"type": "array", "minItems": 2,
+                                      "items": {"type": "number"}},
+                        "counts": {"type": "array", "minItems": 1,
+                                   "items": {"type": "integer", "minimum": 0}},
+                    },
+                },
+            ],
+        },
     },
 }
 

@@ -1,7 +1,7 @@
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState } from "react";
-import { INITIAL_CENTER, INITIAL_ZOOM, MAP_STYLE } from "../config";
+import { DATA_BASE, INITIAL_CENTER, INITIAL_ZOOM, MAP_STYLE } from "../config";
 import { buildStationFeatures } from "../lib/mapData";
 import { lensByKey } from "../lib/lenses";
 import { useApp } from "../store";
@@ -58,6 +58,39 @@ export function MapScreen() {
           "text-halo-width": 1.2,
         },
       });
+      // Optional overlay layers — sequential so before: "station-circles" always works
+      const addOptionalGeojson = async (
+        id: string,
+        url: string,
+        layer: Omit<maplibregl.LayerSpecification, "id" | "source">,
+        before?: string,
+      ) => {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) return;
+          const data = (await res.json()) as GeoJSON.FeatureCollection;
+          if (!map.getSource(id)) map.addSource(id, { type: "geojson", data });
+          map.addLayer({ id, source: id, ...layer } as maplibregl.LayerSpecification, before);
+        } catch { /* overlay is optional */ }
+      };
+
+      void (async () => {
+        await addOptionalGeojson("rail", `${DATA_BASE}/rail.geojson`, {
+          type: "line",
+          paint: { "line-color": "#2e7d5b", "line-width": 1.2, "line-opacity": 0.35 },
+        }, "station-circles");
+        await addOptionalGeojson("hazard-flood", `${DATA_BASE}/hazard/flood.geojson`, {
+          type: "fill",
+          layout: { visibility: "none" },
+          paint: { "fill-color": "#3a7da0", "fill-opacity": 0.25 },
+        }, "station-circles");
+        await addOptionalGeojson("hazard-landslide", `${DATA_BASE}/hazard/landslide.geojson`, {
+          type: "fill",
+          layout: { visibility: "none" },
+          paint: { "fill-color": "#a05f3a", "fill-opacity": 0.3 },
+        }, "station-circles");
+      })();
+
       map.on("mousemove", "station-circles", e => {
         const f = e.features?.[0];
         if (!f) return;
@@ -111,6 +144,16 @@ export function MapScreen() {
     const s = stations.stations.find(x => x.id === selectedId);
     if (s) map.flyTo({ center: [s.lon, s.lat], zoom: Math.max(map.getZoom(), 12.5) });
   }, [selectedId, stations]);
+
+  // toggle hazard overlay visibility with リスク lens
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const vis = lens === "risk" ? "visible" : "none";
+    for (const id of ["hazard-flood", "hazard-landslide"]) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
+    }
+  }, [mapReady, lens]);
 
   return (
     <div className="map-wrap">

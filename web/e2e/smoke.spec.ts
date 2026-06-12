@@ -20,5 +20,6 @@ test("core loop: map → search → card → compare", async ({ page }) => {
   await page.locator(".picker .search-hits button").first().click();
 
   // verify the radar axis label is visible
-  await expect(page.getByText("価格の勢い")).toBeVisible();
+  // exact match → only the radar axis tick, never proseFor sentences containing the phrase
+  await expect(page.getByText("価格の勢い", { exact: true })).toBeVisible();
 });

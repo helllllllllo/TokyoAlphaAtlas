@@ -34,6 +34,12 @@ export interface DealResult {
 }
 
 export function evaluateDeal(deal: DealInput, station: Station, hist: Hist | null): DealResult {
+  if (!Number.isFinite(deal.priceYen) || deal.priceYen <= 0) {
+    throw new Error(`evaluateDeal: priceYen must be a positive finite number, got ${deal.priceYen}`);
+  }
+  if (!Number.isFinite(deal.sizeM2) || deal.sizeM2 <= 0) {
+    throw new Error(`evaluateDeal: sizeM2 must be a positive finite number, got ${deal.sizeM2}`);
+  }
   const ppsm = deal.priceYen / deal.sizeM2;
   const m = station.metrics;
   const percentile = hist ? percentileFromHist(hist, ppsm) : null;

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { listDeals, saveDeal, removeDeal, DEALS_KEY } from "./deals";
 
 beforeEach(() => localStorage.clear());
@@ -22,5 +22,17 @@ describe("deals storage", () => {
     expect(listDeals()).toEqual([]);
     localStorage.setItem(DEALS_KEY, JSON.stringify({ v: 99, deals: [{}] }));
     expect(listDeals()).toEqual([]);
+  });
+  it("returns null when storage write fails (quota)", () => {
+    const spy = vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new DOMException("QuotaExceededError");
+    });
+    try {
+      const deal = saveDeal({ stationId: "中野", priceYen: 1, sizeM2: 1 });
+      expect(deal).toBeNull();
+      expect(removeDeal("whatever")).toBe(false);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

@@ -1,12 +1,17 @@
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { SearchBox } from "./components/SearchBox";
 import { TopBar } from "./components/TopBar";
-import { BenchmarkScreen } from "./screens/BenchmarkScreen";
-import { CompareScreen } from "./screens/CompareScreen";
 import { MapScreen } from "./screens/MapScreen";
 import { useApp } from "./store";
+
+const CompareScreen = lazy(() =>
+  import("./screens/CompareScreen").then(m => ({ default: m.CompareScreen })),
+);
+const BenchmarkScreen = lazy(() =>
+  import("./screens/BenchmarkScreen").then(m => ({ default: m.BenchmarkScreen })),
+);
 
 export default function App() {
   const { status, error, load } = useApp();
@@ -34,11 +39,13 @@ export default function App() {
           <p style={{ padding: 20, color: "var(--dim)" }}>読み込み中…</p>
         ) : (
           <ErrorBoundary>
-            <Routes>
-              <Route path="/" element={<MapScreen />} />
-              <Route path="/compare" element={<CompareScreen />} />
-              <Route path="/benchmark" element={<BenchmarkScreen />} />
-            </Routes>
+            <Suspense fallback={<div style={{ padding: 20, color: "var(--dim)" }}>読み込み中…</div>}>
+              <Routes>
+                <Route path="/" element={<MapScreen />} />
+                <Route path="/compare" element={<CompareScreen />} />
+                <Route path="/benchmark" element={<BenchmarkScreen />} />
+              </Routes>
+            </Suspense>
           </ErrorBoundary>
         )}
       </div>

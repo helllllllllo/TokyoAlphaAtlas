@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   PolarAngleAxis, PolarGrid, Radar, RadarChart, ResponsiveContainer,
 } from "recharts";
@@ -12,8 +12,10 @@ function StationPicker({ slot, value }: { slot: 0 | 1; value: Station | null }) 
   const { stations, compare } = useApp();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
-  const hits = matchStations(stations?.stations ?? [], q);
+  const hits = useMemo(() => matchStations(stations?.stations ?? [], q), [stations, q]);
   const set = (id: string) => {
+    const other = compare[slot === 0 ? 1 : 0];
+    if (other === id) return; // already picked in the other slot
     const next: [string | null, string | null] = [...compare] as [string | null, string | null];
     next[slot] = id;
     useApp.setState({ compare: next });
@@ -55,15 +57,25 @@ const ROWS: { label: string; get: (s: Station) => string }[] = [
 
 export function CompareScreen() {
   const { stations, compare } = useApp();
-  const all = stations?.stations ?? [];
+  const all = useMemo(() => stations?.stations ?? [], [stations]);
   const a = all.find(s => s.id === compare[0]) ?? null;
   const b = all.find(s => s.id === compare[1]) ?? null;
 
+  const [axA, axB] = useMemo(
+    () => [a ? axesFor(a, all) : null, b ? axesFor(b, all) : null],
+    [a, b, all],
+  );
+
   const radarData = AXES.map((ax, i) => ({
     axis: ax.label,
-    a: a ? axesFor(a, all)[i].value : 0,
-    b: b ? axesFor(b, all)[i].value : 0,
+    a: axA?.[i].value ?? 0,
+    b: axB?.[i].value ?? 0,
   }));
+
+  const prose = useMemo(
+    () => (a && b && axA && axB ? proseFor(a, b, axA, axB) : []),
+    [a, b, axA, axB],
+  );
 
   return (
     <div className="compare">
@@ -111,7 +123,7 @@ export function CompareScreen() {
               </tbody>
             </table>
             <div className="panel" style={{ padding: 14, marginTop: 12, fontSize: 13, lineHeight: 1.8, color: "var(--dim)" }}>
-              {proseFor(a, b, all).map((line, i) => <p key={i} style={{ margin: 0 }}>{line}</p>)}
+              {prose.map((line, i) => <p key={i} style={{ margin: 0 }}>{line}</p>)}
             </div>
           </div>
         </div>

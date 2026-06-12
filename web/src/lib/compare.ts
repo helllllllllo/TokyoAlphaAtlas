@@ -52,10 +52,8 @@ export function axesFor(s: Station, all: Station[]): AxisValue[] {
 
 const GAP = 15; // points of axis difference worth mentioning
 
-/** Neutral per-dimension prose. No winners, no game language. */
-export function proseFor(a: Station, b: Station, all: Station[]): string[] {
-  const ax = axesFor(a, all);
-  const bx = axesFor(b, all);
+/** Neutral per-dimension prose from precomputed axes. No winners, no game language. */
+export function proseFor(a: Station, b: Station, ax: AxisValue[], bx: AxisValue[]): string[] {
   const aheadA: string[] = [];
   const aheadB: string[] = [];
   ax.forEach((av, i) => {

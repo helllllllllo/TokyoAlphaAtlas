@@ -41,7 +41,8 @@ describe("proseFor", () => {
   it("mentions dimensions with a clear gap, neutrally", () => {
     const a = st("北千住", { growth_1y: 0.12, liquidity_score: 90, hazard_score: 70 });
     const b = st("赤羽", { growth_1y: 0.02, liquidity_score: 60, hazard_score: 20 });
-    const text = proseFor(a, b, [a, b]).join("");
+    const all = [a, b];
+    const text = proseFor(a, b, axesFor(a, all), axesFor(b, all)).join("");
     expect(text).toContain("北千住");
     expect(text).toContain("赤羽");
     expect(text).not.toMatch(/勝|負|対決/); // no game language

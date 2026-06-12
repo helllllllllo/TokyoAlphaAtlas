@@ -25,11 +25,20 @@ function read(): Box {
   }
 }
 
+function write(box: Box): boolean {
+  try {
+    localStorage.setItem(DEALS_KEY, JSON.stringify(box));
+    return true;
+  } catch {
+    return false; // quota exceeded or storage unavailable
+  }
+}
+
 export function listDeals(): SavedDeal[] {
   return read().deals;
 }
 
-export function saveDeal(d: Omit<SavedDeal, "id" | "savedAt">): SavedDeal {
+export function saveDeal(d: Omit<SavedDeal, "id" | "savedAt">): SavedDeal | null {
   const box = read();
   const deal: SavedDeal = {
     ...d,
@@ -37,12 +46,11 @@ export function saveDeal(d: Omit<SavedDeal, "id" | "savedAt">): SavedDeal {
     savedAt: new Date().toISOString(),
   };
   box.deals.push(deal);
-  localStorage.setItem(DEALS_KEY, JSON.stringify(box));
-  return deal;
+  return write(box) ? deal : null;
 }
 
-export function removeDeal(id: string): void {
+export function removeDeal(id: string): boolean {
   const box = read();
   box.deals = box.deals.filter(d => d.id !== id);
-  localStorage.setItem(DEALS_KEY, JSON.stringify(box));
+  return write(box);
 }

@@ -45,4 +45,14 @@ describe("evaluateDeal", () => {
     expect(r.grossYield).toBeNull();
     expect(r.verdicts.length).toBeGreaterThan(0);
   });
+  it("throws on non-positive or non-finite price", () => {
+    expect(() => evaluateDeal({ priceYen: 0, sizeM2: 50 }, station, null)).toThrow(/priceYen/);
+    expect(() => evaluateDeal({ priceYen: NaN, sizeM2: 50 }, station, null)).toThrow(/priceYen/);
+    expect(() => evaluateDeal({ priceYen: Infinity, sizeM2: 50 }, station, null)).toThrow(/priceYen/);
+  });
+  it("throws on non-positive or non-finite size", () => {
+    expect(() => evaluateDeal({ priceYen: 30000000, sizeM2: 0 }, station, null)).toThrow(/sizeM2/);
+    expect(() => evaluateDeal({ priceYen: 30000000, sizeM2: -5 }, station, null)).toThrow(/sizeM2/);
+    expect(() => evaluateDeal({ priceYen: 30000000, sizeM2: NaN }, station, null)).toThrow(/sizeM2/);
+  });
 });

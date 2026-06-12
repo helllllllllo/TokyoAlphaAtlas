@@ -21,6 +21,7 @@ export function MapScreen() {
   // init once — StrictMode-safe: guard with mapRef.current check
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
+    let removed = false;
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: MAP_STYLE,
@@ -67,8 +68,9 @@ export function MapScreen() {
       ) => {
         try {
           const res = await fetch(url);
-          if (!res.ok) return;
+          if (!res.ok || removed) return;
           const data = (await res.json()) as GeoJSON.FeatureCollection;
+          if (removed) return; // map was torn down while fetching
           if (!map.getSource(id)) map.addSource(id, { type: "geojson", data });
           map.addLayer({ id, source: id, ...layer } as maplibregl.LayerSpecification, before);
         } catch { /* overlay is optional */ }
@@ -89,6 +91,13 @@ export function MapScreen() {
           layout: { visibility: "none" },
           paint: { "fill-color": "#a05f3a", "fill-opacity": 0.3 },
         }, "station-circles");
+        if (removed) return;
+        // sync visibility with the current lens — the toggle effect may have
+        // already run before these layers existed
+        const vis = useApp.getState().lens === "risk" ? "visible" : "none";
+        for (const id of ["hazard-flood", "hazard-landslide"]) {
+          if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
+        }
       })();
 
       map.on("mousemove", "station-circles", e => {
@@ -124,7 +133,7 @@ export function MapScreen() {
       setMapReady(true);
     });
     mapRef.current = map;
-    return () => { map.remove(); mapRef.current = null; };
+    return () => { removed = true; map.remove(); mapRef.current = null; };
   }, [select]);
 
   // push data on lens/quarter/data change

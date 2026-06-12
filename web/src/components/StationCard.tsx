@@ -32,8 +32,10 @@ export function StationCard() {
 
   useEffect(() => {
     if (!selectedId) return;
+    let cancelled = false;
     setDetail("loading");
-    void fetchDetail(selectedId).then(setDetail);
+    void fetchDetail(selectedId).then(d => { if (!cancelled) setDetail(d); });
+    return () => { cancelled = true; };
   }, [selectedId]);
 
   if (!selectedId || !station) return null;

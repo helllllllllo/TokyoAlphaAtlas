@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { TopBar } from "./components/TopBar";
+import { MapScreen } from "./screens/MapScreen";
 import { useApp } from "./store";
 
 export default function App() {
@@ -31,7 +32,7 @@ export default function App() {
         ) : (
           <ErrorBoundary>
             <Routes>
-              <Route path="/" element={<p style={{ padding: 20 }}>地図（実装中）</p>} />
+              <Route path="/" element={<MapScreen />} />
               <Route path="/compare" element={<p style={{ padding: 20 }}>比較（実装中）</p>} />
               <Route path="/benchmark" element={<p style={{ padding: 20 }}>査定（実装中）</p>} />
             </Routes>

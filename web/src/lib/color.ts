@@ -1,6 +1,10 @@
 export function lerpColor(a: string, b: string, t: number): string {
-  const pa = parseInt(a.slice(1), 16);
-  const pb = parseInt(b.slice(1), 16);
+  const pa = parseInt(a.replace(/^#/, ""), 16);
+  const pb = parseInt(b.replace(/^#/, ""), 16);
+  if (Number.isNaN(pa) || Number.isNaN(pb)) {
+    if (import.meta.env.DEV) throw new Error(`lerpColor: malformed hex color (${a}, ${b})`);
+    return a;
+  }
   const ch = (sh: number) => {
     const va = (pa >> sh) & 0xff;
     const vb = (pb >> sh) & 0xff;

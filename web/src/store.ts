@@ -21,6 +21,11 @@ interface AppState {
   load: () => Promise<void>;
 }
 
+let loadStarted = false;
+
+/** Test-only helper: allow load() to run again. */
+export function _resetLoad() { loadStarted = false; }
+
 export const useApp = create<AppState>((set, get) => ({
   lens: "price",
   quarterIdx: null,
@@ -46,6 +51,8 @@ export const useApp = create<AppState>((set, get) => ({
   clearCompare: () => set({ compare: [null, null] }),
 
   load: async () => {
+    if (loadStarted) return;
+    loadStarted = true;
     try {
       const meta = await fetchMeta();
       const [stations, quarters] = await Promise.all([fetchStations(), fetchQuarters()]);

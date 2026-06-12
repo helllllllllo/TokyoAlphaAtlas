@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { TopBar } from "./components/TopBar";
 import { useApp } from "./store";
 
@@ -28,11 +29,13 @@ export default function App() {
         {status === "loading" ? (
           <p style={{ padding: 20, color: "var(--dim)" }}>読み込み中…</p>
         ) : (
-          <Routes>
-            <Route path="/" element={<p style={{ padding: 20 }}>地図（実装中）</p>} />
-            <Route path="/compare" element={<p style={{ padding: 20 }}>比較（実装中）</p>} />
-            <Route path="/benchmark" element={<p style={{ padding: 20 }}>査定（実装中）</p>} />
-          </Routes>
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/" element={<p style={{ padding: 20 }}>地図（実装中）</p>} />
+              <Route path="/compare" element={<p style={{ padding: 20 }}>比較（実装中）</p>} />
+              <Route path="/benchmark" element={<p style={{ padding: 20 }}>査定（実装中）</p>} />
+            </Routes>
+          </ErrorBoundary>
         )}
       </div>
     </>

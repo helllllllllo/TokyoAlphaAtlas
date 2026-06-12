@@ -20,4 +20,5 @@ describe("formatPct", () => {
 
 describe("formatYen", () => {
   it("groups digits", () => expect(formatYen(33000000)).toBe("3,300万円"));
+  it("handles null", () => expect(formatYen(null)).toBe("—"));
 });

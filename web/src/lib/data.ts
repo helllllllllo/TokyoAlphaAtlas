@@ -26,6 +26,9 @@ export const fetchQuarters = () => fetchJson<QuartersDoc>(`${DATA_BASE}/quarters
 
 const detailCache = new Map<string, StationDetail | null>();
 
+/** Test-only helper: reset the detail cache between tests. */
+export function clearDetailCache() { detailCache.clear(); }
+
 export async function fetchDetail(id: string): Promise<StationDetail | null> {
   if (detailCache.has(id)) return detailCache.get(id)!;
   const res = await fetch(`${DATA_BASE}/station/${id}.json`);

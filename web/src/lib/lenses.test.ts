@@ -14,6 +14,10 @@ describe("lerpColor", () => {
     expect(lerpColor("#000000", "#ffffff", 0.5)).toBe("#808080");
     expect(lerpColor("#ff0000", "#00ff00", 0)).toBe("#ff0000");
   });
+  it("throws on malformed hex in dev", () => {
+    expect(() => lerpColor("#zzzzzz", "#ffffff", 0.5)).toThrow(/malformed hex/);
+    expect(() => lerpColor("#000000", "not-a-color", 0.5)).toThrow(/malformed hex/);
+  });
 });
 
 describe("lenses", () => {

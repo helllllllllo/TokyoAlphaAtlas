@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { SchemaMismatchError, fetchDetail, fetchJson, fetchMeta } from "./data";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SchemaMismatchError, clearDetailCache, fetchDetail, fetchJson, fetchMeta } from "./data";
 
 function mockFetch(map: Record<string, unknown>) {
   vi.stubGlobal("fetch", vi.fn(async (url: string) => {
@@ -13,6 +13,7 @@ function mockFetch(map: Record<string, unknown>) {
   }));
 }
 
+beforeEach(() => clearDetailCache());
 afterEach(() => vi.unstubAllGlobals());
 
 describe("fetchJson", () => {

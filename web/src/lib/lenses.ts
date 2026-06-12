@@ -43,7 +43,9 @@ export const LENSES: Lens[] = [
 ];
 
 export function lensByKey(key: LensKey): Lens {
-  return LENSES.find(l => l.key === key)!;
+  const lens = LENSES.find(l => l.key === key);
+  if (!lens) throw new Error(`Unknown lens key: "${key}"`);
+  return lens;
 }
 
 export function colorFor(lens: Lens, value: number | null): string {

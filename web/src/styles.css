@@ -112,7 +112,7 @@ input, select {
 .chip {
   background: #101a33; border: 1px solid #2a3a60; border-radius: 12px;
   padding: 4px 10px; color: #7fd4ef; font-size: 11px; cursor: pointer;
-  transition: border-color 150ms;
+  transition: border-color 150ms, transform 150ms;
 }
 .chip:hover { border-color: #7fd4ef; transform: translateY(-1px); }
 .card-actions { display: flex; gap: 8px; margin-top: 16px; }

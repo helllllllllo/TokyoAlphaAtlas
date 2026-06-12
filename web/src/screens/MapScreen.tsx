@@ -62,11 +62,21 @@ export function MapScreen() {
         if (!f) return;
         map.getCanvas().style.cursor = "pointer";
         const p = f.properties as Record<string, string>;
+        // Build the tooltip via DOM APIs (textContent only) — no innerHTML.
+        const tip = document.createElement("div");
+        const name = document.createElement("strong");
+        name.textContent = p.name;
+        tip.appendChild(name);
+        tip.appendChild(document.createElement("br"));
+        tip.appendChild(document.createTextNode(p.priceLabel));
+        tip.appendChild(document.createElement("br"));
+        const dim = document.createElement("span");
+        dim.className = "tip-dim";
+        dim.textContent = `${p.growthLabel}　${p.txLabel}`;
+        tip.appendChild(dim);
         popup
           .setLngLat((f.geometry as GeoJSON.Point).coordinates as [number, number])
-          .setHTML(
-            `<strong>${p.name}</strong><br/>${p.priceLabel}<br/><span class="tip-dim">${p.growthLabel}　${p.txLabel}</span>`,
-          )
+          .setDOMContent(tip)
           .addTo(map);
       });
       map.on("mouseleave", "station-circles", () => {
@@ -88,6 +98,8 @@ export function MapScreen() {
     const map = mapRef.current;
     if (!map || !mapReady || !stations || !quarters) return;
     const fc = buildStationFeatures(stations.stations, quarters, lensByKey(lens), quarterIdx);
+    // Rebuilds ~1300 features per tick at 350ms play speed; fine for V8
+    // young-gen GC, revisit if interval drops below ~100ms.
     (map.getSource("stations") as maplibregl.GeoJSONSource)?.setData(fc);
   }, [mapReady, stations, quarters, lens, quarterIdx]);
 

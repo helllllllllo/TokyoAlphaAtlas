@@ -57,7 +57,10 @@ input, select {
   background: rgba(10, 16, 32, 0.95); color: var(--text);
   border: 1px solid var(--accent); border-radius: 8px; padding: 10px 12px; font-size: 12px;
 }
-.station-tip .maplibregl-popup-tip { border-top-color: var(--accent); }
+.station-tip .maplibregl-popup-tip {
+  border-top-color: var(--accent);
+  border-bottom-color: var(--accent);
+}
 .tip-dim { color: var(--dim); }
 
 .time-slider {

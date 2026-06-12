@@ -49,7 +49,8 @@ export function buildStationFeatures(
         strokeColor: "#48598a",
         labelText: `${s.name} ${formatMan(median)}`,
         priceLabel,
-        growthLabel: `1年成長 ${formatPct(s.metrics.growth_1y)}`,
+        // snapshot growth_1y, not historical — flag it when scrubbed
+        growthLabel: `1年成長 ${formatPct(s.metrics.growth_1y)}${scrubbed ? "（現時点）" : ""}`,
         txLabel: `取引 ${tx}件`,
       },
     };

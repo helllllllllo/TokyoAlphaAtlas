@@ -7,10 +7,15 @@ export function TimeSlider() {
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const n = quarters?.quarters.length ?? 0;
   const enabled = lens === "price" && n > 1;
-  const idx = quarterIdx ?? n - 1;
+  const idx = Math.max(quarterIdx ?? n - 1, 0);
 
   useEffect(() => {
-    if (!playing || !enabled) return;
+    if (!playing || !enabled) {
+      // Switching lens away while playing must clear the playing flag,
+      // otherwise returning to the price lens would auto-resume playback.
+      if (playing && !enabled) setPlaying(false);
+      return;
+    }
     timer.current = setInterval(() => {
       const cur = useApp.getState().quarterIdx ?? n - 1;
       const next = cur + 1;
@@ -41,7 +46,7 @@ export function TimeSlider() {
       <input
         type="range"
         min={0}
-        max={n - 1}
+        max={Math.max(n - 1, 0)}
         value={idx}
         disabled={!enabled}
         onChange={e => {

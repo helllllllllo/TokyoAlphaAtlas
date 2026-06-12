@@ -49,4 +49,18 @@ describe("buildStationFeatures", () => {
     expect(p.opacity).toBeLessThan(0.15);
     expect(p.strokeWidth).toBeGreaterThan(0);
   });
+  it("treats a scrubbed station missing from the quarters map as hollow no-data", () => {
+    const s = station({ id: "知らない駅", name: "知らない駅" });
+    const fc = buildStationFeatures([s], quarters, lensByKey("price"), 0);
+    const p = fc.features[0].properties!;
+    expect(p.color).toBe(NULL_COLOR); // null median
+    expect(p.txLabel).toBe("取引 0件");
+    expect(p.opacity).toBeLessThan(0.15); // tx 0 → confidence 0
+    expect(p.strokeWidth).toBeGreaterThan(0); // hollow
+  });
+  it("ignores quarterIdx on non-price lenses", () => {
+    const latest = buildStationFeatures([station()], quarters, lensByKey("momentum"), null);
+    const scrubbed = buildStationFeatures([station()], quarters, lensByKey("momentum"), 0);
+    expect(scrubbed.features[0].properties!.color).toBe(latest.features[0].properties!.color);
+  });
 });

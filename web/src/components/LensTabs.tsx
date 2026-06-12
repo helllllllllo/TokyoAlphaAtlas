@@ -2,7 +2,8 @@ import { LENSES } from "../lib/lenses";
 import { useApp } from "../store";
 
 export function LensTabs() {
-  const { lens, setLens } = useApp();
+  const lens = useApp(s => s.lens);
+  const setLens = useApp(s => s.setLens);
   return (
     <div className="lens-tabs">
       {LENSES.map(l => (

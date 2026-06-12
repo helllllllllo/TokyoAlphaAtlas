@@ -2,7 +2,8 @@ import { lensByKey } from "../lib/lenses";
 import { useApp } from "../store";
 
 export function Legend() {
-  const { lens, meta } = useApp();
+  const lens = useApp(s => s.lens);
+  const meta = useApp(s => s.meta);
   const l = lensByKey(lens);
   const gradient = `linear-gradient(90deg, ${l.ramp.join(", ")})`;
   return (

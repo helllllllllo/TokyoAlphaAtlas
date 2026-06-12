@@ -40,6 +40,7 @@ export function MapScreen() {
         paint: {
           "circle-radius": ["get", "radius"],
           "circle-color": ["get", "color"],
+          "circle-color-transition": { duration: 300 },
           "circle-opacity": ["get", "opacity"],
           "circle-stroke-width": ["get", "strokeWidth"],
           "circle-stroke-color": ["get", "strokeColor"],

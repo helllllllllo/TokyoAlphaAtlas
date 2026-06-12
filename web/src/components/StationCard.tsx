@@ -73,21 +73,21 @@ export function StationCard() {
           <PriceChart detail={detail} />
           <div className="label" style={{ marginTop: 10 }}>ハザード内訳</div>
           <p className="dim small">{hazardText(detail.hazard)}</p>
-          {detail.similar.length > 0 && (
-            <>
-              <div className="label" style={{ marginTop: 10 }}>似てるのに安い駅</div>
-              <div className="chips">
-                {detail.similar
-                  .filter(s => s.price_gap != null && s.price_gap < 0)
-                  .slice(0, 5)
-                  .map(s => (
+          {(() => {
+            const cheaper = detail.similar.filter(s => s.price_gap != null && s.price_gap < 0).slice(0, 5);
+            return cheaper.length > 0 ? (
+              <>
+                <div className="label" style={{ marginTop: 10 }}>似てるのに安い駅</div>
+                <div className="chips">
+                  {cheaper.map(s => (
                     <button key={s.id} className="chip" onClick={() => select(s.id)}>
                       {s.name} {formatPct(s.price_gap)}
                     </button>
                   ))}
-              </div>
-            </>
-          )}
+                </div>
+              </>
+            ) : null;
+          })()}
         </>
       )}
 

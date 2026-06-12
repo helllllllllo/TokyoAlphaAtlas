@@ -32,6 +32,7 @@ export function buildStationFeatures(
     const median = scrubbed ? (q?.m[quarterIdx] ?? null) : s.metrics.median_ppsm;
     const tx = scrubbed ? (q?.n[quarterIdx] ?? 0) : s.metrics.tx_count;
     const value = scrubbed ? median : lens.accessor(s.metrics);
+    // thresholds mirror pipeline config MIN_WINDOW_TX=10 / MIN_QUARTER_TX=3 (pipeline/atlas/config.py) — keep in sync
     const conf = scrubbed ? (tx >= 10 ? 2 : tx >= 3 ? 1 : 0) : s.metrics.confidence;
 
     const opacity = conf === 2 ? 0.9 : conf === 1 ? 0.55 : 0.08;

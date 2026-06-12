@@ -51,7 +51,7 @@ export function evaluateDeal(deal: DealInput, station: Station, hist: Hist | nul
     const dir = gap < -0.02 ? "下回る" : gap > 0.02 ? "上回る" : "ほぼ一致する";
     verdicts.push(
       `この物件の㎡単価は${formatMan(ppsm)}円。${station.name}の直近中央値（${formatMan(m.median_ppsm)}円）を${formatPct(Math.abs(gap))}${dir}。` +
-      (percentile != null ? `直近2年の取引分布では下から${percentile.toFixed(0)}%の位置。` : ""),
+      (percentile != null ? `直近${hist!.window_quarters / 4}年の取引分布では下から${percentile.toFixed(0)}%の位置。` : ""),
     );
   }
   verdicts.push(

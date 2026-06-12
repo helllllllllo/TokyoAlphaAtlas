@@ -34,7 +34,11 @@ export function BenchmarkScreen() {
 
   useEffect(() => {
     if (!stationId) return;
-    void fetchDetail(stationId).then(d => setHist(d?.hist ?? null));
+    let cancelled = false;
+    setResult(null);
+    setHist(null);
+    void fetchDetail(stationId).then(d => { if (!cancelled) setHist(d?.hist ?? null); });
+    return () => { cancelled = true; };
   }, [stationId]);
 
   const histRows = useMemo(() => {
@@ -98,12 +102,12 @@ export function BenchmarkScreen() {
             <div style={{ height: 160 }}>
               <ResponsiveContainer>
                 <BarChart data={histRows} margin={{ top: 10, right: 8, bottom: 0, left: 0 }}>
-                  <XAxis dataKey="bin" tick={{ fontSize: 9, fill: "#7a8ab8" }} />
+                  <XAxis dataKey="mid" type="category" tick={{ fontSize: 9, fill: "#7a8ab8" }} tickFormatter={v => formatMan(Number(v))} />
                   <YAxis tick={{ fontSize: 9, fill: "#7a8ab8" }} width={24} />
                   <Bar dataKey="count" fill="#3f6fa0" />
                   <ReferenceLine
                     x={histRows.length > 0
-                      ? histRows.reduce((best, r) => Math.abs(r.mid - result.ppsm) < Math.abs(best.mid - result.ppsm) ? r : best).bin
+                      ? histRows.reduce((best, r) => Math.abs(r.mid - result.ppsm) < Math.abs(best.mid - result.ppsm) ? r : best).mid
                       : undefined}
                     stroke="#c9a86a" strokeWidth={2}
                     label={{ value: "この物件", fill: "#c9a86a", fontSize: 11, position: "top" }}

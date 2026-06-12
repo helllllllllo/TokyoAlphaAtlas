@@ -24,11 +24,15 @@ body {
 button.primary {
   background: #1e3a5f; border: 1px solid #3f6fd0; border-radius: 8px;
   color: #bcd4ff; padding: 8px 14px; cursor: pointer; font-size: 13px;
+  transition: filter 150ms;
 }
+button.primary:hover { filter: brightness(1.15); }
 button.secondary {
   background: #2f2410; border: 1px solid #b8862e; border-radius: 8px;
   color: var(--accent); padding: 8px 14px; cursor: pointer; font-size: 13px;
+  transition: filter 150ms;
 }
+button.secondary:hover { filter: brightness(1.15); }
 input, select {
   background: #101a33; border: 1px solid #2a3a60; border-radius: 8px;
   color: var(--text); padding: 6px 10px; font-size: 13px;
@@ -44,6 +48,7 @@ input, select {
 .lens-tabs button {
   background: none; border: none; color: var(--dim); font-size: 12px;
   padding: 5px 14px; border-radius: 7px; cursor: pointer;
+  transition: background 150ms, color 150ms;
 }
 .lens-tabs button.on { background: var(--accent); color: #14100a; font-weight: 600; }
 .lens-tabs button.soon { color: #5a6890; cursor: default; }
@@ -76,9 +81,13 @@ input, select {
 .time-slider .q-hint { font-size: 10px; color: var(--faint); }
 .time-slider.disabled { opacity: 0.55; }
 
+@keyframes card-in {
+  from { transform: translateX(16px); opacity: 0; }
+}
 .station-card {
   position: absolute; top: 14px; right: 14px; bottom: 24px; width: 380px;
   z-index: 15; padding: 18px; overflow-y: auto;
+  animation: card-in 200ms ease-out;
 }
 .station-card header { display: flex; justify-content: space-between; align-items: flex-start; }
 .station-card h2 { margin: 0; font-size: 19px; }
@@ -103,7 +112,9 @@ input, select {
 .chip {
   background: #101a33; border: 1px solid #2a3a60; border-radius: 12px;
   padding: 4px 10px; color: #7fd4ef; font-size: 11px; cursor: pointer;
+  transition: border-color 150ms;
 }
+.chip:hover { border-color: #7fd4ef; transform: translateY(-1px); }
 .card-actions { display: flex; gap: 8px; margin-top: 16px; }
 .card-actions button { flex: 1; }
 

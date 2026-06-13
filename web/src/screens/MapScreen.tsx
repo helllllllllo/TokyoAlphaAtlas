@@ -73,7 +73,9 @@ export function MapScreen() {
           const data = (await res.json()) as GeoJSON.FeatureCollection;
           if (removed) return; // map was torn down while fetching
           if (!map.getSource(id)) map.addSource(id, { type: "geojson", data });
-          map.addLayer({ id, source: id, ...layer } as maplibregl.LayerSpecification, before);
+          if (!map.getLayer(id)) {
+            map.addLayer({ id, source: id, ...layer } as maplibregl.LayerSpecification, before);
+          }
         } catch { /* overlay is optional */ }
       };
 

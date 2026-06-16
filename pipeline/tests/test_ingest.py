@@ -28,6 +28,70 @@ def test_ingest_transactions_empty_dir_raises(con, tmp_path):
     with pytest.raises(FileNotFoundError):
         ingest.ingest_transactions(con, src_dir=tmp_path)
 
+
+def test_xpt001_feature_to_transaction_row():
+    feature = {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [139.767, 35.681]},
+        "properties": {
+            "land_type_name_ja": "中古マンション等",
+            "city_name_ja": "千代田区",
+            "district_name_ja": "丸の内",
+            "u_transaction_price_total_ja": "8,500万円",
+            "u_area_ja": "55㎡",
+            "u_construction_year_ja": "1999年",
+            "point_in_time_name_ja": "2025年第2四半期",
+            "price_information_category_name_ja": "成約価格情報",
+        },
+    }
+
+    row = ingest.xpt001_feature_to_transaction_row(feature)
+
+    assert row["property_type"] == "中古マンション等"
+    assert row["municipality"] == "千代田区"
+    assert row["price_total"] == "85000000"
+    assert row["area_sqm"] == "55"
+    assert row["period_text"] == "2025年第2四半期"
+    assert row["price_type"] == "成約価格情報"
+    assert row["station_lon"] == "139.767"
+    assert row["station_lat"] == "35.681"
+
+
+def test_ingest_transactions_api_reads_cached_xpt001_tiles(con, tmp_path):
+    cache = tmp_path / "api"
+    cache.mkdir()
+    tile = cache / "xpt001-z11-x1817-y806-from20252-to20252-pcall-land07.geojson"
+    tile.write_text(json.dumps({
+        "type": "FeatureCollection",
+        "features": [{
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": [139.767, 35.681]},
+            "properties": {
+                "land_type_name_ja": "中古マンション等",
+                "city_name_ja": "千代田区",
+                "district_name_ja": "丸の内",
+                "u_transaction_price_total_ja": "1億2,500万円",
+                "u_area_ja": "80㎡",
+                "u_construction_year_ja": "令和元年",
+                "point_in_time_name_ja": "2025年第2四半期",
+                "price_information_category_name_ja": "不動産取引価格情報",
+            },
+        }],
+    }), encoding="utf-8")
+
+    n = ingest.ingest_transactions_api(
+        con,
+        from_period="2025Q2",
+        to_period="2025Q2",
+        cache_dir=cache,
+        tiles=[(11, 1817, 806)],
+        api_key="unused-because-cache-exists",
+    )
+
+    assert n == 1
+    row = con.execute("select price_total, station_lon, station_lat from raw_transactions").fetchone()
+    assert row == ("125000000", "139.767", "35.681")
+
 def test_ingest_stations_merges_lines(con):
     n = ingest.ingest_stations(con, n02_path=FIX / "n02_stations.geojson",
                                s12_path=FIX / "s12_ridership.geojson")
@@ -106,9 +170,9 @@ def test_ingest_stations_bbox_clip(tmp_path):
     assert "鹿児島線" not in lines
 
 
-def test_ingest_stations_distant_homonyms_not_merged(tmp_path):
+def test_ingest_stations_distant_homonyms_are_disambiguated(tmp_path):
     """Same-name stations both inside the bbox but ~30km apart must not merge:
-    only the member closest to Tokyo Station survives. A pair ~1km apart
+    each cluster should survive with a line-based suffix. A pair ~1km apart
     (legitimate multi-line station) still merges as before."""
     n02 = {
         "type": "FeatureCollection",
@@ -156,15 +220,26 @@ def test_ingest_stations_distant_homonyms_not_merged(tmp_path):
 
     con = duckdb.connect()
     n = ingest.ingest_stations(con, n02_path=n02_path, s12_path=s12_path)
-    assert n == 2  # 霞ヶ関 (Chiyoda only) + 中野 (merged)
+    assert n == 3  # 霞ヶ関 x 2 + 中野 (merged)
 
-    lon, lat, ridership, lines = con.execute(
-        "select lon, lat, ridership, lines from stations where name_norm = '霞ヶ関'"
-    ).fetchone()
-    # Chiyoda coords, not a Kawagoe-averaged midpoint
+    rows = con.execute(
+        "select name_norm, display_name, lon, lat, ridership, lines "
+        "from stations where base_name_norm = '霞ヶ関' order by name_norm"
+    ).fetchall()
+    assert len(rows) == 2
+    by_name = {r[0]: r for r in rows}
+    assert set(by_name) == {"霞ヶ関（丸ノ内線）", "霞ヶ関（東武東上線）"}
+
+    _, display_name, lon, lat, ridership, lines = by_name["霞ヶ関（丸ノ内線）"]
+    assert display_name == "霞ヶ関（丸ノ内線）"
     assert abs(lon - 139.745) < 0.02 and abs(lat - 35.674) < 0.02
-    assert ridership == 80000  # Kawagoe twin's 7777 not summed
+    assert ridership == 80000
     assert "丸ノ内線" in lines and "東武東上線" not in lines
+
+    _, _, lon, lat, ridership, lines = by_name["霞ヶ関（東武東上線）"]
+    assert abs(lon - 139.448) < 0.02 and abs(lat - 35.915) < 0.02
+    assert ridership == 7777
+    assert "東武東上線" in lines and "丸ノ内線" not in lines
 
     # legitimate close pair still merges with both lines
     lines_nakano, n_lines = con.execute(

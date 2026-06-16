@@ -1,7 +1,7 @@
 import { rampColor } from "./color";
 import type { StationMetrics } from "../types";
 
-export type LensKey = "price" | "momentum" | "value" | "liquidity" | "risk";
+export type LensKey = "price" | "momentum" | "value" | "liquidity" | "risk" | "redevelopment";
 
 export interface Lens {
   key: LensKey;
@@ -39,6 +39,11 @@ export const LENSES: Lens[] = [
     key: "risk", label: "リスク", legend: "色＝ハザード（赤＝高）",
     accessor: m => m.hazard_score, domain: [0, 100],
     ramp: ["#3f8f6f", "#c9a86a", "#d8745f", "#c43f3f"],
+  },
+  {
+    key: "redevelopment", label: "再開発", legend: "色＝再開発ポテンシャル",
+    accessor: m => m.redevelopment_score, domain: [0, 100],
+    ramp: ["#314f6f", "#4a8f8b", "#c3a755", "#e06d4f"],
   },
 ];
 

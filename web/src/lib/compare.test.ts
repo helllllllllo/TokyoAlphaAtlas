@@ -7,7 +7,8 @@ const st = (name: string, over: Partial<Station["metrics"]> = {}): Station => ({
   metrics: {
     median_ppsm: 500000, tx_count: 50, growth_1y: 0.02, growth_3y: null, growth_5y: null,
     volatility: 0.03, dispersion: 0.2, liquidity_score: 50, relative_value: 0,
-    hazard_score: 30, pop_resilience: 50, gravity: 50, confidence: 2, ...over,
+    hazard_score: 30, pop_resilience: 50, redevelopment_score: 50,
+    planning_intensity: 45, gravity: 50, confidence: 2, ...over,
   },
 });
 

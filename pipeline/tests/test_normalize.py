@@ -50,6 +50,56 @@ def test_match_gate_raises():
         normalize.build_clean_transactions(c)
     assert "高円寺" in str(ei.value)
 
+
+def test_normalize_uses_api_station_point_when_station_name_missing():
+    c = duckdb.connect()
+    ingest.ingest_stations(c, n02_path=FIX / "n02_stations.geojson",
+                           s12_path=FIX / "s12_ridership.geojson")
+    c.execute("""create or replace table raw_transactions as
+                 select '中古マンション等' as property_type,
+                        '中野区' as municipality,
+                        'x' as district,
+                        '' as station_name,
+                        null as station_minutes,
+                        '30000000' as price_total,
+                        '50' as area_sqm,
+                        '平成2年' as built_text,
+                        '2023年第1四半期' as period_text,
+                        '成約価格情報' as price_type,
+                        '139.6657' as station_lon,
+                        '35.7056' as station_lat""")
+
+    report = normalize.build_clean_transactions(c)
+    row = c.execute("select station, minutes, price_type from clean_transactions").fetchone()
+
+    assert report["no_station"] == 0
+    assert row == ("中野", 0.0, "成約価格情報")
+
+
+def test_normalize_keeps_api_point_rows_outside_tokyo_wards():
+    c = duckdb.connect()
+    ingest.ingest_stations(c, n02_path=FIX / "n02_stations.geojson",
+                           s12_path=FIX / "s12_ridership.geojson")
+    c.execute("""create or replace table raw_transactions as
+                 select '中古マンション等' as property_type,
+                        '川崎市川崎区' as municipality,
+                        'x' as district,
+                        '' as station_name,
+                        null as station_minutes,
+                        '30000000' as price_total,
+                        '50' as area_sqm,
+                        '平成2年' as built_text,
+                        '2023年第1四半期' as period_text,
+                        '成約価格情報' as price_type,
+                        '139.6657' as station_lon,
+                        '35.7056' as station_lat""")
+
+    report = normalize.build_clean_transactions(c)
+    row = c.execute("select station, municipality from clean_transactions").fetchone()
+
+    assert report["rows_out"] == 1
+    assert row == ("中野", "川崎市川崎区")
+
 def test_empty_after_filters_raises():
     c = duckdb.connect()
     # single row whose property type is filtered out → nothing survives

@@ -40,9 +40,12 @@ def _hermetic_emit(con, report, out, tmp_path=None):
     td = tmp_path or Path(tempfile.mkdtemp())
     hz_empty = td / "_hz_empty"
     hz_empty.mkdir(exist_ok=True)
+    redev_empty = td / "_redev_empty"
+    redev_empty.mkdir(exist_ok=True)
     emit.emit_all(con, report, out_dir=out,
                   rail_src=td / "_no_rail.geojson",
-                  hazard_dir=hz_empty)
+                  hazard_dir=hz_empty,
+                  redevelopment_dir=redev_empty)
 
 def test_emit_writes_valid_artifacts(prepared, tmp_path):
     con, report, out = prepared
@@ -70,8 +73,10 @@ def test_emit_writes_valid_artifacts(prepared, tmp_path):
     assert "rows_clean" in meta["sources"]["transactions"]
     assert isinstance(meta["sources"]["stations"], dict)
     assert "count" in meta["sources"]["stations"]
-    assert isinstance(meta["sources"]["hazard"], bool)
-    assert isinstance(meta["sources"]["population"], bool)
+    assert meta["sources"]["risk"]["scored"] == 0
+    assert meta["sources"]["population"]["scored"] == 0
+    assert meta["sources"]["redevelopment"]["scored"] == 0
+    assert meta["sources"]["api_cache"]["tiles"] == 0
     assert isinstance(meta["sources"]["landprice"], bool)
 
 def test_emit_validates_before_writing(prepared, monkeypatch, tmp_path):

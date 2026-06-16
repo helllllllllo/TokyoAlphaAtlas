@@ -12,6 +12,9 @@ const CompareScreen = lazy(() =>
 const BenchmarkScreen = lazy(() =>
   import("./screens/BenchmarkScreen").then(m => ({ default: m.BenchmarkScreen })),
 );
+const DiscoverScreen = lazy(() =>
+  import("./screens/DiscoverScreen").then(m => ({ default: m.DiscoverScreen })),
+);
 
 export default function App() {
   const { status, error, load } = useApp();
@@ -42,6 +45,7 @@ export default function App() {
             <Suspense fallback={<div style={{ padding: 20, color: "var(--dim)" }}>読み込み中…</div>}>
               <Routes>
                 <Route path="/" element={<MapScreen />} />
+                <Route path="/discover" element={<DiscoverScreen />} />
                 <Route path="/compare" element={<CompareScreen />} />
                 <Route path="/benchmark" element={<BenchmarkScreen />} />
               </Routes>

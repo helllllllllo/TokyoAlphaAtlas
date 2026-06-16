@@ -10,6 +10,8 @@ export interface StationMetrics {
   relative_value: number | null;
   hazard_score: number | null;
   pop_resilience: number | null;
+  redevelopment_score: number | null;
+  planning_intensity: number | null;
   gravity: number;
   confidence: 0 | 1 | 2;
 }
@@ -56,7 +58,28 @@ export interface StationDetail {
   name: string;
   series: { quarters: string[]; median_ppsm: (number | null)[]; tx_count: number[] };
   similar: SimilarStation[];
-  hazard: { flood: number | null; landslide: boolean | null; liquefaction: number | null } | null;
+  hazard: {
+    flood: number | null;
+    landslide: boolean | null;
+    liquefaction: number | null;
+    embankment: number | null;
+    danger_zone: boolean | null;
+  } | null;
+  redevelopment: {
+    score: number;
+    projects_proxy: number;
+    zoning: {
+      use_area: string | null;
+      floor_area_ratio: number | null;
+      building_coverage_ratio: number | null;
+      intensity: number;
+    } | null;
+    district_plan: { count: number | null; coverage?: number | null; names?: string[] };
+    high_utilization: { count: number | null; coverage?: number | null; names?: string[] };
+    city_roads: { count: number | null; names?: string[] };
+    landprice_trend: number | null;
+    population_trend: number | null;
+  } | null;
   landprice: { years: number[]; price: number[] } | null;
   hist: Hist | null;
 }

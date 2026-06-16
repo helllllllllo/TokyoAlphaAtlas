@@ -11,9 +11,14 @@ export interface StationFeatureProps {
   name: string;
   color: string;
   radius: number;
+  haloRadius: number;
+  glowOpacity: number;
+  volatilityWidth: number;
+  volatilityOpacity: number;
   opacity: number;
   strokeWidth: number;
   strokeColor: string;
+  selected: boolean;
   labelText: string;
   priceLabel: string;
   growthLabel: string;
@@ -25,6 +30,7 @@ export function buildStationFeatures(
   quarters: QuartersDoc,
   lens: Lens,
   quarterIdx: number | null,
+  selectedId: string | null = null,
 ): GeoJSON.FeatureCollection<GeoJSON.Point, StationFeatureProps> {
   const features = stations.map(s => {
     const q = quarters.stations[s.id];
@@ -36,6 +42,10 @@ export function buildStationFeatures(
     const conf = scrubbed ? (tx >= 10 ? 2 : tx >= 3 ? 1 : 0) : s.metrics.confidence;
 
     const opacity = conf === 2 ? 0.9 : conf === 1 ? 0.55 : 0.08;
+    const radius = radiusFor(tx);
+    const volatility = s.metrics.volatility;
+    const volT = volatility == null ? 0 : Math.max(0, Math.min(1, (volatility - 0.08) / 0.28));
+    const volatilityOpacity = conf === 0 || volatility == null ? 0 : 0.12 + 0.46 * volT;
     const priceLabel = `㎡単価 ${formatMan(median)}円`;
     return {
       type: "Feature" as const,
@@ -44,10 +54,15 @@ export function buildStationFeatures(
         id: s.id,
         name: s.name,
         color: colorFor(lens, value),
-        radius: radiusFor(tx),
+        radius,
+        haloRadius: radius + (conf === 2 ? 9 : conf === 1 ? 6 : 3),
+        glowOpacity: conf === 2 ? 0.26 : conf === 1 ? 0.14 : 0.04,
+        volatilityWidth: conf === 0 || volatility == null ? 0 : 0.8 + 3.2 * volT,
+        volatilityOpacity,
         opacity,
-        strokeWidth: conf === 0 ? 1.5 : 0,
-        strokeColor: "#48598a",
+        strokeWidth: conf === 0 ? 1.5 : 0.7,
+        strokeColor: conf === 0 ? "#48598a" : "#08101e",
+        selected: s.id === selectedId,
         labelText: `${s.name} ${formatMan(median)}`,
         priceLabel,
         // snapshot growth_1y, not historical — flag it when scrubbed

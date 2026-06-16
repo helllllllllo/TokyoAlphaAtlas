@@ -15,7 +15,6 @@ export function LensTabs() {
           {l.label}
         </button>
       ))}
-      <button className="soon" disabled title="再開発レンズは今後追加予定">再開発</button>
     </div>
   );
 }

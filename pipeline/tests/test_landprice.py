@@ -71,3 +71,31 @@ def test_missing_price_attr_raises(tmp_path):
     st = pd.DataFrame({"name_norm": ["中野"], "lon": [139.6657], "lat": [35.7056]})
     with pytest.raises(ValueError, match="L01-2024.geojson"):
         landprice.add_landprice(st, src_dir=lp_dir)
+
+
+def test_xpt002_api_points_are_accepted(tmp_path):
+    lp_dir = tmp_path / "landprice"
+    lp_dir.mkdir()
+    feat = {"type": "FeatureCollection", "features": [
+        {"type": "Feature",
+         "properties": {
+             "target_year_name_ja": "令和6年1月1日",
+             "u_current_years_price_ja": "920,000(円/㎡)",
+         },
+         "geometry": {"type": "Point", "coordinates": [139.6660, 35.7050]}},
+        {"type": "Feature",
+         "properties": {
+             "target_year_name_ja": "令和5年1月1日",
+             "u_current_years_price_ja": "870,000(円/㎡)",
+         },
+         "geometry": {"type": "Point", "coordinates": [139.6662, 35.7051]}},
+    ]}
+    (lp_dir / "XPT002.geojson").write_text(json.dumps(feat), encoding="utf-8")
+    st = pd.DataFrame({"name_norm": ["中野"], "lon": [139.6657], "lat": [35.7056]})
+
+    df = landprice.add_landprice(st, src_dir=lp_dir)
+
+    assert df.iloc[0]["landprice_series"] == {
+        "years": [2023, 2024],
+        "price": [870000.0, 920000.0],
+    }

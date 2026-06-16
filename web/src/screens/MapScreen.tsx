@@ -2,20 +2,104 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState } from "react";
 import { DATA_BASE, INITIAL_CENTER, INITIAL_ZOOM, MAP_STYLE } from "../config";
+import { fetchDetail } from "../lib/data";
 import { buildStationFeatures } from "../lib/mapData";
+import { buildSimilarityLinks } from "../lib/mapInsights";
 import { lensByKey } from "../lib/lenses";
 import { useApp } from "../store";
 import { Legend } from "../components/Legend";
 import { LensTabs } from "../components/LensTabs";
 import { StationCard } from "../components/StationCard";
 import { TimeSlider } from "../components/TimeSlider";
+import { MapPulse } from "../components/MapPulse";
+import type { StationDetail } from "../types";
 
 const EMPTY: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
+const EMPTY_LINES: GeoJSON.FeatureCollection<GeoJSON.LineString> = { type: "FeatureCollection", features: [] };
+
+type OverlaySpec = {
+  id: string;
+  url: string;
+  layer: Omit<maplibregl.LayerSpecification, "id" | "source">;
+};
+
+const RISK_OVERLAYS: OverlaySpec[] = [
+  {
+    id: "hazard-embankment",
+    url: `${DATA_BASE}/hazard/embankment.geojson`,
+    layer: {
+      type: "fill",
+      layout: { visibility: "none" },
+      paint: { "fill-color": "#d8745f", "fill-opacity": 0.2 },
+    },
+  },
+  {
+    id: "hazard-danger-zone",
+    url: `${DATA_BASE}/hazard/danger_zone.geojson`,
+    layer: {
+      type: "fill",
+      layout: { visibility: "none" },
+      paint: { "fill-color": "#c43f3f", "fill-opacity": 0.32 },
+    },
+  },
+];
+
+const REDEVELOPMENT_OVERLAYS: OverlaySpec[] = [
+  {
+    id: "redevelopment-district-plan",
+    url: `${DATA_BASE}/redevelopment/district_plan.geojson`,
+    layer: {
+      type: "fill",
+      layout: { visibility: "none" },
+      paint: { "fill-color": "#4a8f8b", "fill-opacity": 0.2 },
+    },
+  },
+  {
+    id: "redevelopment-high-utilization",
+    url: `${DATA_BASE}/redevelopment/high_utilization.geojson`,
+    layer: {
+      type: "fill",
+      layout: { visibility: "none" },
+      paint: { "fill-color": "#e06d4f", "fill-opacity": 0.24 },
+    },
+  },
+  {
+    id: "redevelopment-city-roads",
+    url: `${DATA_BASE}/redevelopment/city_roads.geojson`,
+    layer: {
+      type: "line",
+      layout: { visibility: "none", "line-cap": "round", "line-join": "round" },
+      paint: { "line-color": "#f0c978", "line-width": 2.2, "line-opacity": 0.62 },
+    },
+  },
+];
+
+const RISK_OVERLAY_IDS = RISK_OVERLAYS.map(o => o.id);
+const REDEVELOPMENT_OVERLAY_IDS = REDEVELOPMENT_OVERLAYS.map(o => o.id);
+const ALL_THEMATIC_OVERLAY_IDS = [...RISK_OVERLAY_IDS, ...REDEVELOPMENT_OVERLAY_IDS];
+
+async function ensureOptionalGeojson(
+  map: maplibregl.Map,
+  spec: OverlaySpec,
+  before = "station-circles",
+): Promise<void> {
+  if (map.getLayer(spec.id)) return;
+  try {
+    const res = await fetch(spec.url);
+    if (!res.ok || map.getLayer(spec.id)) return;
+    const data = (await res.json()) as GeoJSON.FeatureCollection;
+    if (!map.getSource(spec.id)) map.addSource(spec.id, { type: "geojson", data });
+    if (!map.getLayer(spec.id)) {
+      map.addLayer({ id: spec.id, source: spec.id, ...spec.layer } as maplibregl.LayerSpecification, before);
+    }
+  } catch { /* overlay is optional */ }
+}
 
 export function MapScreen() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [selectedDetail, setSelectedDetail] = useState<StationDetail | null>(null);
   const { stations, quarters, lens, quarterIdx, select, selectedId } = useApp();
 
   // init once — StrictMode-safe: guard with mapRef.current check
@@ -36,6 +120,15 @@ export function MapScreen() {
     map.on("load", () => {
       map.addSource("stations", { type: "geojson", data: EMPTY });
       map.addLayer({
+        id: "station-glow", type: "circle", source: "stations",
+        paint: {
+          "circle-radius": ["get", "haloRadius"],
+          "circle-color": ["get", "color"],
+          "circle-opacity": ["get", "glowOpacity"],
+          "circle-blur": 0.75,
+        },
+      });
+      map.addLayer({
         id: "station-circles", type: "circle", source: "stations",
         paint: {
           "circle-radius": ["get", "radius"],
@@ -46,6 +139,48 @@ export function MapScreen() {
           "circle-stroke-color": ["get", "strokeColor"],
         },
       });
+      map.addLayer({
+        id: "station-volatility", type: "circle", source: "stations",
+        paint: {
+          "circle-radius": ["+", ["get", "radius"], 4],
+          "circle-color": "rgba(0,0,0,0)",
+          "circle-stroke-width": ["get", "volatilityWidth"],
+          "circle-stroke-color": "#f07c64",
+          "circle-stroke-opacity": ["get", "volatilityOpacity"],
+        },
+      });
+      map.addLayer({
+        id: "station-selected", type: "circle", source: "stations",
+        filter: ["==", ["get", "selected"], true],
+        paint: {
+          "circle-radius": ["+", ["get", "haloRadius"], 5],
+          "circle-color": "rgba(0,0,0,0)",
+          "circle-stroke-width": 2.5,
+          "circle-stroke-color": "#f0c978",
+          "circle-opacity": 0.95,
+        },
+      });
+      map.addSource("similarity-links", { type: "geojson", data: EMPTY_LINES });
+      map.addLayer({
+        id: "similarity-link-glow", type: "line", source: "similarity-links",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": ["+", ["get", "width"], 3],
+          "line-opacity": 0.12,
+          "line-blur": 1.4,
+        },
+      }, "station-circles");
+      map.addLayer({
+        id: "similarity-links", type: "line", source: "similarity-links",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": ["get", "width"],
+          "line-opacity": 0.62,
+          "line-dasharray": [1.2, 1.4],
+        },
+      }, "station-circles");
       map.addLayer({
         id: "station-labels", type: "symbol", source: "stations", minzoom: 12.5,
         layout: {
@@ -60,48 +195,26 @@ export function MapScreen() {
           "text-halo-width": 1.2,
         },
       });
-      // Optional overlay layers — sequential so before: "station-circles" always works
-      const addOptionalGeojson = async (
-        id: string,
-        url: string,
-        layer: Omit<maplibregl.LayerSpecification, "id" | "source">,
-        before?: string,
-      ) => {
+
+      const addRail = async () => {
         try {
-          const res = await fetch(url);
+          const res = await fetch(`${DATA_BASE}/rail.geojson`);
           if (!res.ok || removed) return;
           const data = (await res.json()) as GeoJSON.FeatureCollection;
           if (removed) return; // map was torn down while fetching
-          if (!map.getSource(id)) map.addSource(id, { type: "geojson", data });
-          if (!map.getLayer(id)) {
-            map.addLayer({ id, source: id, ...layer } as maplibregl.LayerSpecification, before);
+          if (!map.getSource("rail")) map.addSource("rail", { type: "geojson", data });
+          if (!map.getLayer("rail")) {
+            map.addLayer({
+              id: "rail",
+              source: "rail",
+              type: "line",
+              paint: { "line-color": "#2e7d5b", "line-width": 1.2, "line-opacity": 0.35 },
+            }, "station-circles");
           }
         } catch { /* overlay is optional */ }
       };
 
-      void (async () => {
-        await addOptionalGeojson("rail", `${DATA_BASE}/rail.geojson`, {
-          type: "line",
-          paint: { "line-color": "#2e7d5b", "line-width": 1.2, "line-opacity": 0.35 },
-        }, "station-circles");
-        await addOptionalGeojson("hazard-flood", `${DATA_BASE}/hazard/flood.geojson`, {
-          type: "fill",
-          layout: { visibility: "none" },
-          paint: { "fill-color": "#3a7da0", "fill-opacity": 0.25 },
-        }, "station-circles");
-        await addOptionalGeojson("hazard-landslide", `${DATA_BASE}/hazard/landslide.geojson`, {
-          type: "fill",
-          layout: { visibility: "none" },
-          paint: { "fill-color": "#a05f3a", "fill-opacity": 0.3 },
-        }, "station-circles");
-        if (removed) return;
-        // sync visibility with the current lens — the toggle effect may have
-        // already run before these layers existed
-        const vis = useApp.getState().lens === "risk" ? "visible" : "none";
-        for (const id of ["hazard-flood", "hazard-landslide"]) {
-          if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
-        }
-      })();
+      void addRail();
 
       map.on("mousemove", "station-circles", e => {
         const f = e.features?.[0];
@@ -143,11 +256,35 @@ export function MapScreen() {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady || !stations || !quarters) return;
-    const fc = buildStationFeatures(stations.stations, quarters, lensByKey(lens), quarterIdx);
+    const fc = buildStationFeatures(stations.stations, quarters, lensByKey(lens), quarterIdx, selectedId);
     // Rebuilds ~1300 features per tick at 350ms play speed; fine for V8
     // young-gen GC, revisit if interval drops below ~100ms.
     (map.getSource("stations") as maplibregl.GeoJSONSource)?.setData(fc);
-  }, [mapReady, stations, quarters, lens, quarterIdx]);
+  }, [mapReady, stations, quarters, lens, quarterIdx, selectedId]);
+
+  // load selected station detail for similarity constellation lines
+  useEffect(() => {
+    if (!selectedId) {
+      setSelectedDetail(null);
+      return;
+    }
+    let cancelled = false;
+    void fetchDetail(selectedId).then(detail => {
+      if (!cancelled) setSelectedDetail(detail);
+    });
+    return () => { cancelled = true; };
+  }, [selectedId]);
+
+  // update similarity constellation
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !stations) return;
+    const selected = selectedId ? stations.stations.find(station => station.id === selectedId) : null;
+    const fc = selected
+      ? buildSimilarityLinks(selected, selectedDetail, stations.stations)
+      : EMPTY_LINES;
+    (map.getSource("similarity-links") as maplibregl.GeoJSONSource)?.setData(fc);
+  }, [mapReady, stations, selectedId, selectedDetail]);
 
   // fly to selection
   useEffect(() => {
@@ -157,21 +294,34 @@ export function MapScreen() {
     if (s) map.flyTo({ center: [s.lon, s.lat], zoom: Math.max(map.getZoom(), 12.5) });
   }, [selectedId, stations]);
 
-  // toggle hazard overlay visibility with リスク lens
+  // toggle optional overlay visibility with thematic lenses
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    const vis = lens === "risk" ? "visible" : "none";
-    for (const id of ["hazard-flood", "hazard-landslide"]) {
-      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", vis);
+    let cancelled = false;
+    for (const id of ALL_THEMATIC_OVERLAY_IDS) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", "none");
     }
+    const active = lens === "risk" ? RISK_OVERLAYS : lens === "redevelopment" ? REDEVELOPMENT_OVERLAYS : [];
+    void (async () => {
+      for (const spec of active) {
+        await ensureOptionalGeojson(map, spec);
+      }
+      if (cancelled) return;
+      for (const spec of active) {
+        if (map.getLayer(spec.id)) map.setLayoutProperty(spec.id, "visibility", "visible");
+      }
+    })();
+    return () => { cancelled = true; };
   }, [mapReady, lens]);
 
   return (
     <div className="map-wrap">
       <div ref={containerRef} className="map-container" />
+      <div className="map-atmosphere" />
       <LensTabs />
       <Legend />
+      <MapPulse selectedDetail={selectedDetail} />
       <TimeSlider />
       <StationCard />
     </div>

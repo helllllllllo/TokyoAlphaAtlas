@@ -29,3 +29,29 @@ def test_station_outside_mesh_gets_nan():
 def test_missing_mesh_degrades(tmp_path):
     df = population.add_population(STATIONS, mesh_path=tmp_path / "nope.geojson")
     assert df.pop_change.isna().all()
+
+
+def test_api_population_columns_are_auto_detected(tmp_path):
+    mesh = {
+        "type": "FeatureCollection",
+        "features": [{
+            "type": "Feature",
+            "properties": {"PTN_2020": 100, "PTN_2050": 130},
+            "geometry": {
+                "type": "Polygon",
+                "coordinates": [[
+                    [139.655, 35.695], [139.675, 35.695],
+                    [139.675, 35.715], [139.655, 35.715],
+                    [139.655, 35.695],
+                ]],
+            },
+        }],
+    }
+    path = tmp_path / "mesh.geojson"
+    path.write_text(__import__("json").dumps(mesh), encoding="utf-8")
+
+    df = population.add_population(STATIONS, mesh_path=path)
+    p = df.set_index("name_norm")
+
+    assert p.loc["中野", "pop_change"] == pytest.approx(0.30, abs=0.05)
+    assert p.loc["中野", "pop_density"] > 0

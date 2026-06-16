@@ -26,7 +26,8 @@ describe("evaluateDeal", () => {
     metrics: {
       median_ppsm: 600000, tx_count: 100, growth_1y: 0.09, growth_3y: null, growth_5y: null,
       volatility: 0.03, dispersion: 0.2, liquidity_score: 30, relative_value: 0,
-      hazard_score: 62, pop_resilience: 60, gravity: 70, confidence: 2,
+      hazard_score: 62, pop_resilience: 60, redevelopment_score: 55,
+      planning_intensity: 45, gravity: 70, confidence: 2,
     },
   };
   it("computes ppsm, percentile and verdict sentences", () => {

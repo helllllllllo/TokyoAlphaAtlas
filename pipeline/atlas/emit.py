@@ -67,12 +67,20 @@ def _dominant_ward(con):
     """).fetchall())
 
 
+def _display_name(record: dict) -> str:
+    display = record.get("display_name")
+    station = record["station"]
+    return display if display == station else station
+
+
 def build_docs(con, report):
     asof = aggregate.asof_qidx(con)
     snapshot = aggregate.build_price_snapshot(con, asof)
     stations_df = con.execute("select * from stations").df()
+    if "display_name" not in stations_df.columns:
+        stations_df["display_name"] = stations_df["name_norm"]
     scored = score.build_scores(snapshot, stations_df)
-    for col in ("hazard_score", "pop_resilience"):
+    for col in ("hazard_score", "pop_resilience", "redevelopment_score", "planning_intensity"):
         if col not in scored.columns:
             scored[col] = None
     scored = label_all(scored)
@@ -91,9 +99,14 @@ def build_docs(con, report):
         seen_ids[sid] = name
 
     station_entries = []
+    display_by_key = {
+        r["name_norm"]: (r["display_name"] if r["display_name"] == r["name_norm"] else r["name_norm"])
+        for r in stations_df[["name_norm", "display_name"]].to_dict("records")
+    }
     for r in scored.to_dict("records"):
+        display_name = _display_name(r)
         station_entries.append({
-            "id": _safe_id(r["station"]), "name": r["station"],
+            "id": _safe_id(r["station"]), "name": display_name,
             "ward": wards.get(r["station"], ""),
             "lines": list(r["lines"]),
             "lon": float(r["lon"]), "lat": float(r["lat"]),
@@ -110,6 +123,8 @@ def build_docs(con, report):
                 "relative_value": _clean_num(r.get("relative_value")),
                 "hazard_score": _clean_num(r.get("hazard_score")),
                 "pop_resilience": _clean_num(r.get("pop_resilience")),
+                "redevelopment_score": _clean_num(r.get("redevelopment_score")),
+                "planning_intensity": _clean_num(r.get("planning_intensity")),
                 "gravity": float(r["gravity"]),
                 "confidence": int(r["confidence"]),
             },
@@ -144,11 +159,15 @@ def build_docs(con, report):
             if name not in st_lookup.index:
                 continue
             st = st_lookup.loc[name]
+            display_value = st.get("display_name", name)
+            display_name = display_value if display_value == name else name
             grav_val = float(grav_series[name]) if name in grav_series.index else 50.0
             hazard_val = _clean_num(st.get("hazard_score")) if "hazard_score" in st.index else None
             pop_res_val = _clean_num(st.get("pop_resilience")) if "pop_resilience" in st.index else None
+            redevelopment_val = _clean_num(st.get("redevelopment_score")) if "redevelopment_score" in st.index else None
+            planning_val = _clean_num(st.get("planning_intensity")) if "planning_intensity" in st.index else None
             station_entries.append({
-                "id": sid, "name": name,
+                "id": sid, "name": display_name,
                 "ward": hist_wards.get(name, ""),
                 "lines": list(st.get("lines", [])),
                 "lon": float(st["lon"]), "lat": float(st["lat"]),
@@ -163,6 +182,8 @@ def build_docs(con, report):
                     "relative_value": None,
                     "hazard_score": hazard_val,
                     "pop_resilience": pop_res_val,
+                    "redevelopment_score": redevelopment_val,
+                    "planning_intensity": planning_val,
                     "gravity": grav_val,
                     "confidence": 0,
                 },
@@ -193,7 +214,7 @@ def build_docs(con, report):
         sid = entry["id"]
         own_ppsm = entry["metrics"]["median_ppsm"]
         series = per_station.get(sid, {"m": [], "n": []})
-        similar = [{"id": _safe_id(s), "name": s,
+        similar = [{"id": _safe_id(s), "name": display_by_key.get(s, s),
                     "median_ppsm": ppsm_by_id.get(_safe_id(s)),
                     "price_gap": (None if ppsm_by_id.get(_safe_id(s)) is None or own_ppsm == 0
                                   else ppsm_by_id[_safe_id(s)] / own_ppsm - 1)}
@@ -204,8 +225,9 @@ def build_docs(con, report):
                        "median_ppsm": series["m"], "tx_count": series["n"]},
             "similar": similar,
             "hazard": r.get("hazard_detail") if isinstance(r.get("hazard_detail"), dict) else None,
+            "redevelopment": r.get("redevelopment_detail") if isinstance(r.get("redevelopment_detail"), dict) else None,
             "landprice": r.get("landprice_series") if isinstance(r.get("landprice_series"), dict) else None,
-            "hist": hists.get(entry["name"], None),
+            "hist": hists.get(r["station"], None),
         }
     # Build detail docs for zero-window stations (full historical series, similar=[])
     for entry in station_entries[len(scored):]:
@@ -217,24 +239,37 @@ def build_docs(con, report):
                        "median_ppsm": series["m"], "tx_count": series["n"]},
             "similar": [],
             "hazard": None,
+            "redevelopment": None,
             "landprice": None,
-            "hist": hists.get(entry["name"], None),
+            "hist": hists.get(entry["id"], None),
         }
 
     # Enrich meta.json sources with structured objects (item 6)
     n_stations_clean = int(con.execute("select count(*) from stations").fetchone()[0])
-    has_hazard = any(
-        col in con.execute("describe stations").df()["column_name"].tolist()
-        for col in ("hazard_score",)
-    )
     stations_cols = con.execute("describe stations").df()["column_name"].tolist()
-    has_population = "pop_change" in stations_cols
+    stations_table = con.execute("select * from stations").df()
+    risk_scored = (
+        int(stations_table["hazard_score"].notna().sum())
+        if "hazard_score" in stations_cols else 0
+    )
+    population_scored = (
+        int(stations_table["pop_change"].notna().sum())
+        if "pop_change" in stations_cols else 0
+    )
+    redevelopment_scored = (
+        int(stations_table["redevelopment_score"].notna().sum())
+        if "redevelopment_score" in stations_cols else 0
+    )
     has_landprice = "landprice_series" in stations_cols
     meta_doc = {
         "schema_version": SCHEMA_VERSION,
         "asof": qlabel(asof),
         "generated_rows": {k: v for k, v in report.items()},
         "sources": {
+            "region": {
+                "label": config.REGION_LABEL,
+                "bbox": list(config.REGION_BBOX),
+            },
             "transactions": {
                 "label": "MLIT 不動産取引価格情報",
                 "rows_clean": report.get("rows_out", report.get("rows_in")),
@@ -244,8 +279,21 @@ def build_docs(con, report):
                 "label": "国土数値情報 N02/S12",
                 "count": n_stations_clean,
             },
-            "hazard": has_hazard,
-            "population": has_population,
+            "risk": {
+                "scored": risk_scored,
+                "total": n_stations_clean,
+            },
+            "population": {
+                "scored": population_scored,
+                "total": n_stations_clean,
+            },
+            "redevelopment": {
+                "scored": redevelopment_scored,
+                "total": n_stations_clean,
+            },
+            "api_cache": {
+                "tiles": int(report.get("_api_cache_tiles", 0) or 0),
+            },
             "landprice": has_landprice,
         },
     }
@@ -253,11 +301,14 @@ def build_docs(con, report):
 
 
 def emit_all(con, report, out_dir: Path | None = None,
-             rail_src: Path | None = None, hazard_dir: Path | None = None):
+             rail_src: Path | None = None, hazard_dir: Path | None = None,
+             redevelopment_dir: Path | None = None, api_cache_tiles: int = 0):
     """Build all docs in memory, validate ALL against schemas, only then write."""
     out_dir = Path(out_dir or config.OUT_DIR)
     rail_src = Path(rail_src or config.RAW_DIR / "n02" / "rail_sections.geojson")
     hazard_dir = Path(hazard_dir or config.RAW_DIR / "hazard")
+    redevelopment_dir = Path(redevelopment_dir or config.RAW_DIR / "redevelopment")
+    report = {**report, "_api_cache_tiles": int(api_cache_tiles or 0)}
     stations_doc, quarters_doc, detail_docs, meta_doc = build_docs(con, report)
 
     jsonschema.validate(stations_doc, schemas.STATIONS_SCHEMA)
@@ -287,19 +338,27 @@ def emit_all(con, report, out_dir: Path | None = None,
             print(f"emit: rail_sections missing columns {missing}, skipping overlay")
         else:
             rail = rail.rename(columns={config.N02_LINE: "line", config.N02_OPERATOR: "operator"})
-            # Clip rail to Tokyo bbox and simplify (item 5)
-            lon_min, lat_min, lon_max, lat_max = config.TOKYO_BBOX
+            # Clip rail to the current region bbox and simplify.
+            lon_min, lat_min, lon_max, lat_max = config.REGION_BBOX
             bbox_geom = shapely_box(lon_min, lat_min, lon_max, lat_max)
             rail_clipped = gpd.clip(rail[["line", "operator", "geometry"]], bbox_geom)
             rail_clipped["geometry"] = rail_clipped.geometry.simplify(0.0003)
             rail_clipped.to_file(tmp / "rail.geojson", driver="GeoJSON")
     (tmp / "hazard").mkdir(exist_ok=True)
-    for name in ("flood", "landslide"):
+    for name in ("flood", "landslide", "liquefaction", "embankment", "danger_zone"):
         src = hazard_dir / f"{name}.geojson"
         if src.exists():
             g = gpd.read_file(src)
             g["geometry"] = g.geometry.make_valid().simplify(0.0003)
             g.to_file(tmp / "hazard" / f"{name}.geojson", driver="GeoJSON")
+
+    (tmp / "redevelopment").mkdir(exist_ok=True)
+    for name in ("district_plan", "high_utilization", "city_roads"):
+        src = redevelopment_dir / f"{name}.geojson"
+        if src.exists():
+            g = gpd.read_file(src)
+            g["geometry"] = g.geometry.make_valid().simplify(0.0003)
+            g.to_file(tmp / "redevelopment" / f"{name}.geojson", driver="GeoJSON")
 
     old = out_dir.parent / (out_dir.name + ".old")
     if old.exists():

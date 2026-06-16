@@ -6,7 +6,8 @@ import type { StationMetrics } from "../types";
 const M: StationMetrics = {
   median_ppsm: 800000, tx_count: 100, growth_1y: 0.09, growth_3y: 0.2,
   growth_5y: 0.35, volatility: 0.03, dispersion: 0.2, liquidity_score: 80,
-  relative_value: 0.12, hazard_score: 60, pop_resilience: 70, gravity: 75, confidence: 2,
+  relative_value: 0.12, hazard_score: 60, pop_resilience: 70,
+  redevelopment_score: 82, planning_intensity: 74, gravity: 75, confidence: 2,
 };
 
 describe("lerpColor", () => {
@@ -21,14 +22,15 @@ describe("lerpColor", () => {
 });
 
 describe("lenses", () => {
-  it("has the five spec lenses in order", () => {
-    expect(LENSES.map(l => l.key)).toEqual(["price", "momentum", "value", "liquidity", "risk"]);
+  it("has the spec lenses in order", () => {
+    expect(LENSES.map(l => l.key)).toEqual(["price", "momentum", "value", "liquidity", "risk", "redevelopment"]);
     expect(lensByKey("price").label).toBe("価格");
   });
   it("accessors read the right metric", () => {
     expect(lensByKey("price").accessor(M)).toBe(800000);
     expect(lensByKey("momentum").accessor(M)).toBe(0.09);
     expect(lensByKey("risk").accessor(M)).toBe(60);
+    expect(lensByKey("redevelopment").accessor(M)).toBe(82);
   });
   it("colorFor clamps to domain and returns gray for null", () => {
     const lens = lensByKey("price");

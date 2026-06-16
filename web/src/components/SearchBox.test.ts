@@ -7,7 +7,8 @@ const st = (name: string, ward = "中野区"): Station => ({
   metrics: {
     median_ppsm: 1, tx_count: 1, growth_1y: null, growth_3y: null, growth_5y: null,
     volatility: null, dispersion: null, liquidity_score: 0, relative_value: null,
-    hazard_score: null, pop_resilience: null, gravity: 0, confidence: 1,
+    hazard_score: null, pop_resilience: null, redevelopment_score: null,
+    planning_intensity: null, gravity: 0, confidence: 1,
   },
 });
 

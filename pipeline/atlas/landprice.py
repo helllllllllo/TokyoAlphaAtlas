@@ -9,6 +9,42 @@ from atlas import config
 
 MAX_DIST_M = 1000
 _YEAR_RE = re.compile(r"L01-(\d{4})")
+_ERA_RE = re.compile(r"(令和|平成)(\d+|元)年?")
+_DIGIT_RE = re.compile(r"\d[\d,]*")
+
+
+def _parse_api_year(text: object) -> int | None:
+    if text is None or pd.isna(text):
+        return None
+    value = str(text).translate(str.maketrans("０１２３４５６７８９", "0123456789"))
+    m = _ERA_RE.search(value)
+    if m:
+        n = 1 if m.group(2) == "元" else int(m.group(2))
+        return (2018 + n) if m.group(1) == "令和" else (1988 + n)
+    m = re.search(r"(20\d{2}|19\d{2})", value)
+    return int(m.group(1)) if m else None
+
+
+def _parse_api_price(text: object) -> float | None:
+    if text is None or pd.isna(text):
+        return None
+    value = str(text).translate(str.maketrans("０１２３４５６７８９，", "0123456789,"))
+    m = _DIGIT_RE.search(value)
+    if not m:
+        return None
+    return float(m.group(0).replace(",", ""))
+
+
+def _nearest_prices(pts: gpd.GeoDataFrame, layer: gpd.GeoDataFrame,
+                    price_col: str) -> pd.Series:
+    joined = gpd.sjoin_nearest(
+        pts,
+        layer[[price_col, "geometry"]],
+        how="left",
+        max_distance=MAX_DIST_M,
+        distance_col="_d",
+    )
+    return joined[~joined.index.duplicated(keep="first")][price_col]
 
 
 def add_landprice(stations: pd.DataFrame, src_dir: Path | None = None) -> pd.DataFrame:
@@ -16,7 +52,10 @@ def add_landprice(stations: pd.DataFrame, src_dir: Path | None = None) -> pd.Dat
     point within MAX_DIST_M, as {'years': [...], 'price': [...]} or None."""
     src_dir = Path(src_dir or config.RAW_DIR / "landprice")
     out = stations.copy()
-    files = sorted(src_dir.glob("L01-*.geojson")) if src_dir.exists() else []
+    files = []
+    if src_dir.exists():
+        files.extend(sorted(src_dir.glob("L01-*.geojson")))
+        files.extend(sorted(src_dir.glob("XPT002*.geojson")))
     if not files:
         out["landprice_series"] = None
         return out
@@ -33,24 +72,39 @@ def add_landprice(stations: pd.DataFrame, src_dir: Path | None = None) -> pd.Dat
     per_station: list[dict] = [dict() for _ in range(len(stations))]
     for f in files:
         m = _YEAR_RE.search(f.name)
-        if m is None:
+        if m is None and not f.name.startswith("XPT002"):
             continue
+        lp = gpd.read_file(f)
+        if lp.empty:
+            continue
+        lp = lp.to_crs(config.METRIC_CRS)
+
+        if f.name.startswith("XPT002"):
+            required = {"target_year_name_ja", "u_current_years_price_ja"}
+            missing = required - set(lp.columns)
+            if missing:
+                raise ValueError(f"{f.name}: missing XPT002 columns {sorted(missing)}")
+            lp["_year"] = lp["target_year_name_ja"].map(_parse_api_year)
+            lp["_price"] = lp["u_current_years_price_ja"].map(_parse_api_price)
+            lp = lp.dropna(subset=["_year", "_price"])
+            for year, group in lp.groupby("_year"):
+                prices = _nearest_prices(pts, group, "_price")
+                for i in range(len(stations)):
+                    price = prices.iloc[i]
+                    if pd.notna(price):
+                        per_station[i][int(year)] = float(price)
+            continue
+
         year = int(m.group(1))
         # Per-year attribute override (L01-2024 moved price col from L01_006 → L01_008)
         price_attr = config.LANDPRICE_PRICE_ATTR_BY_YEAR.get(year, config.LANDPRICE_PRICE_ATTR)
-        lp = gpd.read_file(f).to_crs(config.METRIC_CRS)
         if price_attr not in lp.columns:
             raise ValueError(
                 f"{f.name}: expected price attribute '{price_attr}' not found "
                 f"(available: {sorted(lp.columns.tolist())}). "
                 f"Update LANDPRICE_PRICE_ATTR_BY_YEAR in config.py for year {year}."
             )
-        joined = gpd.sjoin_nearest(pts, lp[[price_attr, "geometry"]],
-                                   how="left", max_distance=MAX_DIST_M,
-                                   distance_col="_d")
-        # equidistant ties duplicate rows — keep the first match per station
-        joined = joined[~joined.index.duplicated(keep="first")]
-        prices = joined[price_attr]
+        prices = _nearest_prices(pts, lp, price_attr)
         for i in range(len(stations)):
             price = prices.iloc[i]
             if pd.notna(price):

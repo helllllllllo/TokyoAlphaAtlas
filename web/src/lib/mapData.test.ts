@@ -9,7 +9,8 @@ const station = (over: Partial<Station> = {}): Station => ({
   metrics: {
     median_ppsm: 660000, tx_count: 100, growth_1y: 0.1, growth_3y: null, growth_5y: null,
     volatility: 0.03, dispersion: 0.2, liquidity_score: 80, relative_value: 0.05,
-    hazard_score: 35, pop_resilience: 70, gravity: 75, confidence: 2,
+    hazard_score: 35, pop_resilience: 70, redevelopment_score: 65, planning_intensity: 58,
+    gravity: 75, confidence: 2,
   },
   ...over,
 });
@@ -35,6 +36,10 @@ describe("buildStationFeatures", () => {
     expect(p.id).toBe("中野");
     expect(p.color).not.toBe(NULL_COLOR);
     expect(p.opacity).toBeGreaterThan(0.8); // confidence 2
+    expect(p.haloRadius).toBeGreaterThan(p.radius);
+    expect(p.glowOpacity).toBeGreaterThan(0);
+    expect(p.volatilityWidth).toBeGreaterThan(0);
+    expect(p.volatilityOpacity).toBeGreaterThan(0);
   });
   it("uses quarterly median when scrubbed on price lens", () => {
     const latest = buildStationFeatures([station()], quarters, lensByKey("price"), null);
@@ -48,6 +53,7 @@ describe("buildStationFeatures", () => {
     const p = fc.features[0].properties!;
     expect(p.opacity).toBeLessThan(0.15);
     expect(p.strokeWidth).toBeGreaterThan(0);
+    expect(p.volatilityOpacity).toBe(0);
   });
   it("treats a scrubbed station missing from the quarters map as hollow no-data", () => {
     const s = station({ id: "知らない駅", name: "知らない駅" });
@@ -62,5 +68,9 @@ describe("buildStationFeatures", () => {
     const latest = buildStationFeatures([station()], quarters, lensByKey("momentum"), null);
     const scrubbed = buildStationFeatures([station()], quarters, lensByKey("momentum"), 0);
     expect(scrubbed.features[0].properties!.color).toBe(latest.features[0].properties!.color);
+  });
+  it("marks the selected station for highlight layers", () => {
+    const fc = buildStationFeatures([station()], quarters, lensByKey("price"), null, "中野");
+    expect(fc.features[0].properties!.selected).toBe(true);
   });
 });

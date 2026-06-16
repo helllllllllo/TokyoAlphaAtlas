@@ -13,7 +13,7 @@ export function Legend() {
         <span>{l.legend}</span>
       </div>
       <div className="legend-row faint">
-        大きさ＝取引量　○＝データ薄　|　中古マンション・23区
+        大きさ＝取引量　○＝データ薄　|　中古マンション・首都圏コア
       </div>
       <div className="legend-row faint">データ: {meta?.asof ?? "—"} まで</div>
     </div>

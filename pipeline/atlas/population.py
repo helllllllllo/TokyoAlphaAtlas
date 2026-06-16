@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 import geopandas as gpd
 import numpy as np
@@ -6,6 +7,22 @@ import pandas as pd
 from shapely.geometry import Point
 
 from atlas import config
+
+_PTN_RE = re.compile(r"^PTN_(\d{4})$")
+
+
+def _population_columns(mesh: gpd.GeoDataFrame) -> tuple[str | None, str | None]:
+    if config.POP_BASE_ATTR in mesh.columns and config.POP_FUTURE_ATTR in mesh.columns:
+        return config.POP_BASE_ATTR, config.POP_FUTURE_ATTR
+    years = []
+    for col in mesh.columns:
+        m = _PTN_RE.match(str(col))
+        if m:
+            years.append((int(m.group(1)), col))
+    if len(years) < 2:
+        return None, None
+    years.sort()
+    return years[0][1], years[-1][1]
 
 
 def add_population(stations: pd.DataFrame, mesh_path: Path | None = None) -> pd.DataFrame:
@@ -18,9 +35,19 @@ def add_population(stations: pd.DataFrame, mesh_path: Path | None = None) -> pd.
         out["pop_density"] = np.nan
         return out
 
-    mesh = gpd.read_file(mesh_path).to_crs(config.METRIC_CRS)
-    mesh["base"] = pd.to_numeric(mesh[config.POP_BASE_ATTR], errors="coerce")
-    mesh["future"] = pd.to_numeric(mesh[config.POP_FUTURE_ATTR], errors="coerce")
+    mesh = gpd.read_file(mesh_path)
+    if mesh.empty:
+        out["pop_change"] = np.nan
+        out["pop_density"] = np.nan
+        return out
+    base_attr, future_attr = _population_columns(mesh)
+    if base_attr is None or future_attr is None:
+        out["pop_change"] = np.nan
+        out["pop_density"] = np.nan
+        return out
+    mesh = mesh.to_crs(config.METRIC_CRS)
+    mesh["base"] = pd.to_numeric(mesh[base_attr], errors="coerce")
+    mesh["future"] = pd.to_numeric(mesh[future_attr], errors="coerce")
     mesh["cell_area"] = mesh.geometry.area
 
     pts = gpd.GeoDataFrame(

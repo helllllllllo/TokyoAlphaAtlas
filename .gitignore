@@ -12,3 +12,7 @@ web/tsconfig.tsbuildinfo
 web/test-results/
 web/playwright-report/
 .gstack/
+.env
+.env.*
+!.env.example
+!pipeline/.env.example

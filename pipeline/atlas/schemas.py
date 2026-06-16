@@ -16,6 +16,7 @@ STATION_ENTRY = {
             "required": ["median_ppsm", "tx_count", "growth_1y", "growth_3y",
                          "growth_5y", "volatility", "dispersion", "liquidity_score",
                          "relative_value", "hazard_score", "pop_resilience",
+                         "redevelopment_score", "planning_intensity",
                          "gravity", "confidence"],
             "additionalProperties": False,
             "properties": {
@@ -28,6 +29,8 @@ STATION_ENTRY = {
                 "relative_value": _metric_or_null,
                 "hazard_score": _metric_or_null,
                 "pop_resilience": _metric_or_null,
+                "redevelopment_score": _metric_or_null,
+                "planning_intensity": _metric_or_null,
                 "gravity": {"type": "number"},
                 "confidence": {"type": "integer", "minimum": 0, "maximum": 2},
             },
@@ -67,7 +70,7 @@ QUARTERS_SCHEMA = {
 
 DETAIL_SCHEMA = {
     "type": "object",
-    "required": ["schema_version", "id", "name", "series", "similar", "hazard", "landprice", "hist"],
+    "required": ["schema_version", "id", "name", "series", "similar", "hazard", "redevelopment", "landprice", "hist"],
     "properties": {
         "schema_version": {"type": "integer"},
         "id": {"type": "string"}, "name": {"type": "string"},
@@ -93,6 +96,7 @@ DETAIL_SCHEMA = {
             },
         },
         "hazard": {"type": ["object", "null"]},
+        "redevelopment": {"type": ["object", "null"]},
         "landprice": {"type": ["object", "null"]},
         "hist": {
             "oneOf": [

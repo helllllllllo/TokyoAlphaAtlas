@@ -5,7 +5,7 @@ node_modules/
 .DS_Store
 __pycache__/
 *.pyc
-web/public/data/
+web/public/data*/
 web/node_modules/
 web/dist/
 web/tsconfig.tsbuildinfo
